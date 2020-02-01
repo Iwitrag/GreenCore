@@ -4,7 +4,6 @@ import org.bukkit.Particle;
 
 public class ParticlesFlag implements Flag {
 
-    // colored particle, count=0, extra=1, offset 0-1 (X=R, Y=G, Z=B)
     private Particle particle;
     private int density;
     private int red;
@@ -14,9 +13,9 @@ public class ParticlesFlag implements Flag {
     public ParticlesFlag() {
         this.particle = null;
         this.density = 1;
-        this.red = 255;
-        this.green = 255;
-        this.blue = 255;
+        this.red = 0;
+        this.green = 0;
+        this.blue = 0;
     }
 
     public Particle getParticle() {

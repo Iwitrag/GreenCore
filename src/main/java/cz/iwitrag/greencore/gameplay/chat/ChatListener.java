@@ -1,4 +1,6 @@
 package cz.iwitrag.greencore.gameplay.chat;
 
-public class ChatListener {
+import org.bukkit.event.Listener;
+
+public class ChatListener implements Listener {
 }

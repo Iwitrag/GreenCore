@@ -11,6 +11,7 @@ import cz.iwitrag.greencore.gameplay.oregen.MiningOreGeneration;
 import cz.iwitrag.greencore.gameplay.playerskills.SkillsListener;
 import cz.iwitrag.greencore.gameplay.zones.ZoneCommands;
 import cz.iwitrag.greencore.gameplay.zones.ZoneExecutor;
+import cz.iwitrag.greencore.gameplay.zones.ZoneFlagsExecutor;
 import cz.iwitrag.greencore.helpers.DependenciesProvider;
 import cz.iwitrag.greencore.helpers.WorldManager;
 import cz.iwitrag.greencore.playerbase.GPlayerListener;
@@ -24,8 +25,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
-
-import java.util.Locale;
 
 public class Init {
     
@@ -45,9 +44,9 @@ public class Init {
                     .configure().
                     addAnnotatedClass(GPlayer.class).
                     buildSessionFactory();
-        } catch (Throwable ex) {
-            System.err.println("Failed to create sessionFactory object." + ex);
-            throw new ExceptionInInitializerError(ex);
+        } catch (Throwable e) {
+            System.err.println("Failed to create sessionFactory object." + e);
+            throw new ExceptionInInitializerError(e);
         }*/
 
     }
@@ -58,7 +57,8 @@ public class Init {
 
     private void registerCommands(PaperCommandManager paperCommandManager) {
         paperCommandManager.enableUnstableAPI("help");
-        paperCommandManager.getLocales().setDefaultLocale(new Locale("cs", "CZ"));
+        // Temporarily disabled until Aikar implements changes in ACF
+        //paperCommandManager.getLocales().setDefaultLocale(new Locale("cs", "CZ"));
         paperCommandManager.registerCommand(new LotteryCommand());
         paperCommandManager.registerCommand(new RtpCommand());
         paperCommandManager.registerCommand(new VipCommand());
@@ -92,6 +92,7 @@ public class Init {
         pluginManager.registerEvents(new SurvivalDeathManager(), plugin);
         pluginManager.registerEvents(new ToolDurabilityModifier(), plugin);
         pluginManager.registerEvents(new VotifierListener(), plugin);
+        pluginManager.registerEvents(ZoneFlagsExecutor.getInstance(), plugin);
     }
 
     private void createInstances() {

@@ -26,6 +26,11 @@ public class DamageAction extends Action {
             player.setHealth(player.getHealth() - damage);
     }
 
+    @Override
+    public Action copy() {
+        return new DamageAction(this.damage);
+    }
+
     public int getDamage() {
         return damage;
     }

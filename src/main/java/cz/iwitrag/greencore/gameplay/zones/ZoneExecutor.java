@@ -18,14 +18,7 @@ public class ZoneExecutor {
         Bukkit.getScheduler().scheduleSyncRepeatingTask(Main.getInstance(), () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 for (Zone zone : ZoneManager.getInstance().getZones()) {
-                    if (player.getWorld().equals(zone.getPoint1().getWorld()) &&
-                            player.getLocation().getX() >= zone.getPoint1().getX() &&
-                            player.getLocation().getX() <= zone.getPoint2().getX() &&
-                            player.getLocation().getY() >= zone.getPoint1().getY() &&
-                            player.getLocation().getY() <= zone.getPoint2().getY() &&
-                            player.getLocation().getZ() >= zone.getPoint1().getZ() &&
-                            player.getLocation().getZ() <= zone.getPoint2().getZ() &&
-                            !isZoneBeingExecutedByPlayer(zone, player))
+                    if (isPlayerInsideZone(player, zone) && !isZoneBeingExecutedByPlayer(zone, player))
                         executions.add(new ZoneExecution(zone, player));
                 }
             }
@@ -39,6 +32,16 @@ public class ZoneExecutor {
         if (instance == null)
             instance = new ZoneExecutor();
         return instance;
+    }
+
+    public boolean isPlayerInsideZone(Player player, Zone zone) {
+        return (player.getWorld().equals(zone.getPoint1().getWorld()) &&
+                player.getLocation().getX() >= zone.getPoint1().getX()-0.5 &&
+                player.getLocation().getX() <= zone.getPoint2().getX()+0.5 &&
+                player.getLocation().getY() >= zone.getPoint1().getY()-0.5 &&
+                player.getLocation().getY() <= zone.getPoint2().getY()+0.5 &&
+                player.getLocation().getZ() >= zone.getPoint1().getZ()-0.5 &&
+                player.getLocation().getZ() <= zone.getPoint2().getZ()+0.5);
     }
 
     public boolean isZoneBeingExecuted(Zone zone) {

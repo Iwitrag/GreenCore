@@ -1,5 +1,6 @@
 package cz.iwitrag.greencore.helpers;
 
+import org.bukkit.Particle;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 
@@ -37,6 +38,11 @@ public class Utils {
             set.add(block.getRelative(BlockFace.WEST));
         }
         return set;
+    }
+
+    public static boolean isParticleColorizable(Particle particle) {
+        if (particle == null) return false;
+        return particle.equals(Particle.REDSTONE);
     }
 
 }

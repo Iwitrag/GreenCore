@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,16 +52,12 @@ public class Zone {
         return point1;
     }
 
-    public void setPoint1(Location point1) {
-        this.point1 = point1;
-        sortLocations(this.point1, this.point2);
-    }
-
     public Location getPoint2() {
         return point2;
     }
 
-    public void setPoint2(Location point2) {
+    public void setPoints(Location point1, Location point2) {
+        this.point1 = point1;
         this.point2 = point2;
         sortLocations(this.point1, this.point2);
     }
@@ -77,8 +74,34 @@ public class Zone {
         return Math.abs(point1.getBlockZ() - point2.getBlockZ()) + 1;
     }
 
+    public int getSize() {
+        return getSizeInX()*getSizeInY()*getSizeInZ();
+    }
+
     public Location getCenterPoint() {
-        return new Location(point1.getWorld(), point1.getX()+point2.getX()/2, point1.getY()+point2.getY()/2, point1.getZ()+point2.getZ()/2);
+        double xMin = point1.getX()-0.5;
+        double yMin = point1.getY()-0.5;
+        double zMin = point1.getZ()-0.5;
+        double xMax = point2.getX()+0.5;
+        double yMax = point2.getY()+0.5;
+        double zMax = point2.getZ()+0.5;
+        double xResult = xMin + ((xMax - xMin)/2);
+        double yResult = yMin + ((yMax - yMin)/2);
+        double zResult = zMin + ((zMax - zMin)/2);
+        return new Location(point1.getWorld(), xResult, yResult, zResult);
+    }
+
+    public Location getRandomPoint() {
+        double xMin = point1.getX()-0.5;
+        double yMin = point1.getY()-0.5;
+        double zMin = point1.getZ()-0.5;
+        double xMax = point2.getX()+0.5;
+        double yMax = point2.getY()+0.5;
+        double zMax = point2.getZ()+0.5;
+        double xResult = xMin + ((xMax - xMin)*Math.random());
+        double yResult = yMin + ((yMax - yMin)*Math.random());
+        double zResult = zMin + ((zMax - zMin)*Math.random());
+        return new Location(point1.getWorld(), xResult, yResult, zResult);
     }
 
     public <T extends Flag> boolean hasFlag(Class<T> flagType) {
@@ -116,6 +139,31 @@ public class Zone {
             return flag;
     }
 
+    public Set<Flag> getAllFlags() {
+        return new HashSet<>(flags);
+    }
+
+    public void setFlag(Flag flag) {
+        for (Iterator<Flag> iterator = flags.iterator(); iterator.hasNext(); ) {
+            Flag iteratedFlag = iterator.next();
+            if (iteratedFlag.getClass().equals(flag.getClass())) {
+                iterator.remove();
+                break;
+            }
+        }
+        flags.add(flag);
+    }
+
+    public <T extends Flag> void unsetFlag(Class<T> flagType) {
+        for (Iterator<Flag> iterator = flags.iterator(); iterator.hasNext(); ) {
+            Flag iteratedFlag = iterator.next();
+            if (iteratedFlag.getClass().equals(flagType)) {
+                iterator.remove();
+                break;
+            }
+        }
+    }
+
     public List<Action> getActions() {
         return new ArrayList<>(actions);
     }
@@ -135,11 +183,11 @@ public class Zone {
         int actionTime = action.getTime();
         for(;;) {
             if (index == actions.size()) {
-                actions.add(action);
+                actions.add(index, action);
                 break;
             }
             if (actionTime < actions.get(index).getTime()) {
-                actions.add(action);
+                actions.add(index, action);
                 break;
             }
             index++;
@@ -172,6 +220,10 @@ public class Zone {
 
     public void removeAction(Action action) {
         actions.remove(action);
+    }
+
+    public void removeAllActions() {
+        actions.clear();
     }
 
     @Override

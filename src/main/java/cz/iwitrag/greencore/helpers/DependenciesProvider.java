@@ -88,7 +88,7 @@ public class DependenciesProvider {
             return null;
         Region region;
         try {
-            region = worldEdit.getSession(player).getSelection(BukkitAdapter.adapt(player.getWorld()));
+            region = getWorldEdit().getSession(player).getSelection(BukkitAdapter.adapt(player.getWorld()));
         } catch (IncompleteRegionException e) {
             return null;
         }
@@ -96,7 +96,7 @@ public class DependenciesProvider {
         World w = null;
         if (region.getWorld() != null)
             w = BukkitAdapter.adapt(region.getWorld());
-        return new Location(w, point.getX(), point.getY(), point.getZ());
+        return new Location(w, point.getX()+0.5, point.getY()+0.5, point.getZ()+0.5);
     }
 
 }

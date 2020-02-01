@@ -11,15 +11,17 @@ public class WorldManager {
     private World world;
 
     public WorldManager(String worldName, int worldSizeFromCenter) {
-        Main.getInstance().getLogger().info("World " + worldName + " is already loaded. Applying settings...");
         world = Bukkit.getWorld(worldName);
         if (world == null) {
             Main.getInstance().getLogger().info("World " + worldName + " is not loaded! Loading and applying settings...");
             world = Bukkit.createWorld(new WorldCreator(worldName));
+            if (world == null) {
+                Main.getInstance().getLogger().severe("Failed to load (or create) world " + worldName + ".");
+                return;
+            }
         }
-        if (world == null) {
-            Main.getInstance().getLogger().severe("Failed to load (or create) world " + worldName + ".");
-            return;
+        else {
+            Main.getInstance().getLogger().info("World " + worldName + " is already loaded. Applying settings...");
         }
 
         applyDefaultGameRules();

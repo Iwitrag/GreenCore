@@ -4,6 +4,7 @@ import cz.iwitrag.greencore.gameplay.zones.Zone;
 import cz.iwitrag.greencore.gameplay.zones.ZoneManager;
 import cz.iwitrag.greencore.gameplay.zones.flags.TpFlag;
 import cz.iwitrag.greencore.helpers.Utils;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
 import java.util.Arrays;
@@ -40,8 +41,15 @@ public class TeleportAction extends Action {
     public void execute(Player player) {
         validateParameters();
         Zone targetZone = Utils.pickRandomElement(targets);
-        if (targetZone != null)
+        if (targetZone != null) {
             player.teleport(targetZone.getFlagOrDefault(TpFlag.class).getTpLocation());
+            player.playSound(player.getLocation(), Sound.ENTITY_GHAST_SHOOT, 1.0f, 1.0f);
+        }
+    }
+
+    @Override
+    public Action copy() {
+        return new TeleportAction(targets.toArray(new Zone[0]));
     }
 
     public Set<Zone> getTargets() {

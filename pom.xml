@@ -28,7 +28,7 @@
                     <source>8</source>
                     <target>8</target>
                     <compilerArgs>
-                        <arg>-parameters</arg>
+                        <arg>-parameters</arg> <!-- for ACF command syntax -->
                     </compilerArgs>
                 </configuration>
             </plugin>

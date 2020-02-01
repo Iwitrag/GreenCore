@@ -1,5 +1,6 @@
 package cz.iwitrag.greencore.gameplay.zones.actions;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.util.Arrays;
@@ -40,6 +41,7 @@ public class CommandAction extends Action {
                 // (?i) makes it case insensitive
                 modifiedCommand = modifiedCommand.replaceAll("(?i)" + Pattern.quote(pattern), player.getName());
             }
+            Bukkit.dispatchCommand(Bukkit.getServer().getConsoleSender(), modifiedCommand.substring(1));
         }
         else if (c == '@') {
             player.setOp(true);
@@ -52,6 +54,11 @@ public class CommandAction extends Action {
         else {
             player.performCommand(command.substring(1));
         }
+    }
+
+    @Override
+    public Action copy() {
+        return new CommandAction(this.command);
     }
 
     public String getCommand() {

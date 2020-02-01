@@ -19,4 +19,6 @@ public abstract class Action {
     public abstract String getDescription();
 
     public abstract void execute(Player player);
+
+    public abstract Action copy();
 }

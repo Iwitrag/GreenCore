@@ -1,6 +1,8 @@
 package cz.iwitrag.greencore.gameplay.chat;
 
-public class ChatCommands {
+import co.aikar.commands.BaseCommand;
+
+public class ChatCommands extends BaseCommand {
 
     // clear chat
     // enable / disable chat

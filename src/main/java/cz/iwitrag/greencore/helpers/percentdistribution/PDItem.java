@@ -5,7 +5,7 @@ public class PDItem {
     private String value;
     private double chance;
 
-    PDItem(String value, double chance) {
+    public PDItem(String value, double chance) {
         this.value = value;
         this.chance = chance;
     }
@@ -14,7 +14,15 @@ public class PDItem {
         return value;
     }
 
+    public void setValue(String value) {
+        this.value = value;
+    }
+
     public double getChance() {
         return chance;
+    }
+
+    public void setChance(double chance) {
+        this.chance = chance;
     }
 }

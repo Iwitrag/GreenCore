@@ -13,6 +13,7 @@ softdepend:
   - AuthMe
   - ProtocolLib
   - WorldEdit
+  - Votifier
 loadbefore:
   - Residence # Because residence wants to load world 'pvp'
   - CommandSigns # Because otherwise signs in world 'pvp' are not loaded

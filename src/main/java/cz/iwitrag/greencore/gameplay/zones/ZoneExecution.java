@@ -41,7 +41,7 @@ public class ZoneExecution {
             if (action.getTime() > maxPossibleTick)
                 maxPossibleTick = action.getTime();
         }
-        return currentTick < maxPossibleTick;
+        return currentTick < maxPossibleTick; // whether this was the last tick
     }
 
 

@@ -12,4 +12,9 @@ public class NothingAction extends Action {
     public void execute(Player player) {
 
     }
+
+    @Override
+    public Action copy() {
+        return new NothingAction();
+    }
 }

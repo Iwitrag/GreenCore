@@ -3,6 +3,7 @@ package cz.iwitrag.greencore.helpers;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 
+import java.text.DecimalFormat;
 import java.text.Normalizer;
 import java.util.Collection;
 
@@ -10,6 +11,11 @@ public class StringHelper {
 
     public static String getChatLine() {
         return "---------------------------------------------------";
+    }
+
+    public static String doubleStringWithoutTrailingZeros(double d) {
+        String result = String.valueOf(d);
+        return result.contains(".") ? result.replaceAll("0*$","").replaceAll("\\.$","") : result;
     }
 
     public static boolean anyStringContains(Collection<String> strings, String searchTarget, boolean ignoreCase) {
@@ -40,9 +46,10 @@ public class StringHelper {
         String world = "";
         if (printWorld)
             world = textColor + ", Svět: " + valuesColor + ((location.getWorld() == null) ? "---" : location.getWorld().getName());
-        return textColor + "X: " + valuesColor + location.getBlockX() +
-                textColor + ", Y: " + valuesColor + location.getBlockY() +
-                textColor + ", Z: " + valuesColor + location.getBlockZ() + world;
+        DecimalFormat df = new DecimalFormat("#.##");
+        return textColor + "X: " + valuesColor + df.format(location.getX()) +
+                textColor + ", Y: " + valuesColor + df.format(location.getY()) +
+                textColor + ", Z: " + valuesColor + df.format(location.getZ()) + world;
     }
 
     public static String removeColors(String string) {

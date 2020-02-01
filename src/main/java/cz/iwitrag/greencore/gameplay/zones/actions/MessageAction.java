@@ -1,5 +1,6 @@
 package cz.iwitrag.greencore.gameplay.zones.actions;
 
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
 public class MessageAction extends Action {
@@ -18,7 +19,12 @@ public class MessageAction extends Action {
 
     @Override
     public void execute(Player player) {
-        player.sendMessage(message);
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
+    }
+
+    @Override
+    public Action copy() {
+        return new MessageAction(this.message);
     }
 
     public String getMessage() {
