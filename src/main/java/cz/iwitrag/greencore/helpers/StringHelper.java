@@ -6,15 +6,53 @@ import org.bukkit.Location;
 import java.text.DecimalFormat;
 import java.text.Normalizer;
 import java.util.Collection;
+import java.util.regex.Pattern;
 
 public class StringHelper {
+
+    static java.text.SimpleDateFormat fMySQLDate = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); // Date format for MySQL
+    static java.text.SimpleDateFormat fPlayerDate = new java.text.SimpleDateFormat("dd.MM yyyy HH:mm:ss"); // Player readable date format
+
+    /** Check whether this String could be parsed to valid Integer */
+    public static boolean isInteger(String str) {
+        try {
+            Integer.parseInt(str);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        return true;
+    }
+
+    public static boolean isValidEmailAddress(String email) {
+        String ePattern = "^[a-zA-Z0-9.!#$%&'*+/=?^_{|}~-]+@((\\[[0-9]{1,3}\\." +
+                "[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\])|(([a-zA-Z\\-0-9]+\\.)+[a-zA-Z]{2,}))$";
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(ePattern);
+        java.util.regex.Matcher m = p.matcher(email);
+        return m.matches();
+    }
+
+    public static boolean isValidMinecraftUsername(String username) {
+        return Pattern.compile("[a-zA-Z0-9_]{3,16}").matcher(username).matches();
+    }
+
+    /** Converts given String so ONLY first letter is Capital */
+    public static String firstCapital(String str) {
+        if (str == null) {
+            return null;
+        }
+        if (str.isEmpty()) {
+            return "";
+        }
+        str = str.toLowerCase();
+        return str.substring(0, 1).toUpperCase() + str.substring(1, str.length());
+    }
 
     public static String getChatLine() {
         return "---------------------------------------------------";
     }
 
     public static String doubleStringWithoutTrailingZeros(double d) {
-        String result = String.valueOf(d);
+        String result = new DecimalFormat("#.##").format(d);
         return result.contains(".") ? result.replaceAll("0*$","").replaceAll("\\.$","") : result;
     }
 

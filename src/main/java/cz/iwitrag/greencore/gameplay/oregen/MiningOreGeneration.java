@@ -1,5 +1,8 @@
 package cz.iwitrag.greencore.gameplay.oregen;
 
+import cz.iwitrag.greencore.gameplay.zones.Zone;
+import cz.iwitrag.greencore.gameplay.zones.ZoneManager;
+import cz.iwitrag.greencore.gameplay.zones.flags.MineFlag;
 import cz.iwitrag.greencore.helpers.Utils;
 import javafx.util.Pair;
 import org.bukkit.Location;
@@ -7,7 +10,6 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -28,53 +30,62 @@ public class MiningOreGeneration implements Listener {
     public void onPlayerMining(BlockBreakEvent event) {
         Block brokenBlock = event.getBlock();
 
-        if (brokenBlock.getWorld().getName().equalsIgnoreCase("world")) {
-            for (Block revealedBlock : getRevealedBlocks(brokenBlock)) {
-                if (revealedBlock.getType() != Material.STONE) // Because it could be changed by previous iteration
-                    continue;
+        // Don't spawn ores outside survival overworld
+        if (!brokenBlock.getWorld().getName().equalsIgnoreCase("world"))
+            return;
 
-                OreSettings chosenOreSettings = chooseOreToGenerate(revealedBlock.getLocation());
-                if (chosenOreSettings != null) { // Player was lucky, revealed block is ore vein
-                    Set<Block> blocksToSet = new HashSet<>();
-                    blocksToSet.add(revealedBlock);
-                    int veinSize = determineVeinSize(chosenOreSettings);
+        // Don't spawn ores inside mines
+        for (Zone zone : ZoneManager.getInstance().getZonesPlayerIsInside(event.getPlayer())) {
+            if (zone.hasFlag(MineFlag.class)) {
+                return;
+            }
+        }
 
-                    while (blocksToSet.size() < veinSize) {
-                        boolean foundSpaceForOrePiece = false;
-                        for (int i = 0; i < 10; i++) {
-                            Block centerBlock = Utils.pickRandomElement(blocksToSet);
-                            Block anotherBlock;
-                            if (chosenOreSettings.isDirectlyConnectedOnly())
-                                anotherBlock = Utils.pickRandomElement(Utils.getBlockDirectNeighbours(centerBlock));
-                            else
-                                anotherBlock = Utils.pickRandomElement(getAllNeighboursExceptFarCorners(centerBlock));
+        for (Block revealedBlock : getRevealedBlocks(brokenBlock)) {
+            if (revealedBlock.getType() != Material.STONE) // Because it could be changed by previous iteration
+                continue;
 
-                            if (centerBlock == null || anotherBlock == null)
-                                continue;
+            OreSettings chosenOreSettings = chooseOreToGenerate(revealedBlock.getLocation());
+            if (chosenOreSettings != null) { // Player was lucky, revealed block is ore vein
+                Set<Block> blocksToSet = new HashSet<>();
+                blocksToSet.add(revealedBlock);
+                int veinSize = determineVeinSize(chosenOreSettings);
 
-                            // Make ore vein shape more bulky (if chosen block is too far away or not direct, it has less chance of being chosen)
-                            if (Utils.chance(15.00 * anotherBlock.getLocation().distance(revealedBlock.getLocation())) ||
-                                    (anotherBlock.getLocation().distance(centerBlock.getLocation()) != 1.00 && Utils.chance(50.00))) {
-                                i -= 1;
-                                continue;
-                            }
+                while (blocksToSet.size() < veinSize) {
+                    boolean foundSpaceForOrePiece = false;
+                    for (int i = 0; i < 10; i++) {
+                        Block centerBlock = Utils.pickRandomElement(blocksToSet);
+                        Block anotherBlock;
+                        if (chosenOreSettings.isDirectlyConnectedOnly())
+                            anotherBlock = Utils.pickRandomElement(Utils.getBlockDirectNeighbours(centerBlock));
+                        else
+                            anotherBlock = Utils.pickRandomElement(getAllNeighboursExceptFarCorners(centerBlock));
 
-                            if (!anotherBlock.equals(brokenBlock) && !blocksToSet.contains(anotherBlock) && anotherBlock.getType().equals(Material.STONE) && !isBlockExposed(anotherBlock, brokenBlock)) {
-                                blocksToSet.add(anotherBlock);
-                                foundSpaceForOrePiece = true;
-                                break;
-                            }
+                        if (centerBlock == null || anotherBlock == null)
+                            continue;
+
+                        // Make ore vein shape more bulky (if chosen block is too far away or not direct, it has less chance of being chosen)
+                        if (Utils.chance(15.00 * anotherBlock.getLocation().distance(revealedBlock.getLocation())) ||
+                                (anotherBlock.getLocation().distance(centerBlock.getLocation()) != 1.00 && Utils.chance(50.00))) {
+                            i -= 1;
+                            continue;
                         }
-                        // If we failed to find place for another ore piece, there is probably no space left
-                        if (!foundSpaceForOrePiece) {
+
+                        if (!anotherBlock.equals(brokenBlock) && !blocksToSet.contains(anotherBlock) && anotherBlock.getType().equals(Material.STONE) && !isBlockExposed(anotherBlock, brokenBlock)) {
+                            blocksToSet.add(anotherBlock);
+                            foundSpaceForOrePiece = true;
                             break;
                         }
                     }
+                    // If we failed to find place for another ore piece, there is probably no space left
+                    if (!foundSpaceForOrePiece) {
+                        break;
+                    }
+                }
 
-                    if (blocksToSet.size() >= chosenOreSettings.getMinOrePieces()) {
-                        for (Block block : blocksToSet) {
-                            block.setType(chosenOreSettings.getOre());
-                        }
+                if (blocksToSet.size() >= chosenOreSettings.getMinOrePieces()) {
+                    for (Block block : blocksToSet) {
+                        block.setType(chosenOreSettings.getOre());
                     }
                 }
             }

@@ -4,9 +4,18 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import javax.persistence.Column;
+import javax.persistence.DiscriminatorValue;
+import javax.persistence.Entity;
+
+@Entity
+@DiscriminatorValue("pot")
 public class PotionEffectAction extends Action {
 
+    @Column(name = "pot_potionEffect")
     private PotionEffect potionEffect;
+
+    public PotionEffectAction() {}
 
     public PotionEffectAction(PotionEffectType type, int amplifier, int duration) {
         this.potionEffect = new PotionEffect(type, duration*20, amplifier, false, false);
@@ -16,9 +25,9 @@ public class PotionEffectAction extends Action {
     @Override
     public String getDescription() {
         if (potionEffect.getAmplifier() == -1 || potionEffect.getDuration() == 0)
-            return "Odstraní efekt lektvaru " + potionEffect.getType();
+            return "Odstraní efekt lektvaru " + potionEffect.getType().getName();
         else
-            return "Nastaví efekt lektvaru " + potionEffect.getType() + " " + potionEffect.getAmplifier()+1 + " na dobu " + potionEffect.getDuration()/20 + " sek.";
+            return "Nastaví efekt lektvaru " + potionEffect.getType().getName() + " " + (potionEffect.getAmplifier()+1) + " na dobu " + potionEffect.getDuration()/20 + " sek.";
     }
 
     @Override
@@ -72,7 +81,7 @@ public class PotionEffectAction extends Action {
         validateParameters();
     }
 
-    private void validateParameters() {
+    protected void validateParameters() {
         if (potionEffect.getAmplifier() < -1)
             potionEffect = potionEffect.withAmplifier(-1);
         if (potionEffect.getDuration() < 0)

@@ -2,13 +2,17 @@ package cz.iwitrag.greencore.gameplay.zones;
 
 import co.aikar.commands.BaseCommand;
 import co.aikar.commands.CommandHelp;
+import co.aikar.commands.InvalidCommandArgument;
+import co.aikar.commands.PaperCommandManager;
 import co.aikar.commands.annotation.CommandAlias;
+import co.aikar.commands.annotation.CommandCompletion;
 import co.aikar.commands.annotation.CommandPermission;
 import co.aikar.commands.annotation.Default;
 import co.aikar.commands.annotation.Description;
 import co.aikar.commands.annotation.HelpCommand;
 import co.aikar.commands.annotation.Optional;
 import co.aikar.commands.annotation.Subcommand;
+import co.aikar.commands.bukkit.contexts.OnlinePlayer;
 import cz.iwitrag.greencore.gameplay.zones.actions.Action;
 import cz.iwitrag.greencore.gameplay.zones.actions.CommandAction;
 import cz.iwitrag.greencore.gameplay.zones.actions.DamageAction;
@@ -16,16 +20,21 @@ import cz.iwitrag.greencore.gameplay.zones.actions.MessageAction;
 import cz.iwitrag.greencore.gameplay.zones.actions.NothingAction;
 import cz.iwitrag.greencore.gameplay.zones.actions.PotionEffectAction;
 import cz.iwitrag.greencore.gameplay.zones.actions.TeleportAction;
+import cz.iwitrag.greencore.gameplay.zones.flags.BlockedCommandsFlag;
+import cz.iwitrag.greencore.gameplay.zones.flags.DisconnectPenaltyFlag;
 import cz.iwitrag.greencore.gameplay.zones.flags.EnderPortalFlag;
 import cz.iwitrag.greencore.gameplay.zones.flags.Flag;
 import cz.iwitrag.greencore.gameplay.zones.flags.MineFlag;
 import cz.iwitrag.greencore.gameplay.zones.flags.ParticlesFlag;
 import cz.iwitrag.greencore.gameplay.zones.flags.TpFlag;
+import cz.iwitrag.greencore.helpers.Color;
 import cz.iwitrag.greencore.helpers.DependenciesProvider;
+import cz.iwitrag.greencore.helpers.GeometryHelper;
 import cz.iwitrag.greencore.helpers.StringHelper;
 import cz.iwitrag.greencore.helpers.Utils;
+import cz.iwitrag.greencore.storage.PersistenceManager;
 import org.apache.commons.lang.StringUtils;
-import org.bukkit.Bukkit;
+import org.apache.commons.lang.math.NumberUtils;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.World;
@@ -36,6 +45,7 @@ import org.bukkit.potion.PotionEffectType;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -43,9 +53,140 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/*
+ When adding new FLAG
+ 1. Add annotated class to PersistenceManager
+ 2. Add keywords to getFlagKeywords()
+ 3. flagListCommand()
+ 4. flagSetCommannd()
+ 5. command completion (zone_flags_param)
+ */
+
+/*
+ When adding new ACTION
+ 1. Add annotated class to PersistenceManager
+ 2. Add keywords to getActionKeywords()
+ 3. constructAction()
+ 4. command completion (zone_actions_param)
+ */
+
 @CommandAlias("zone|zona|zones|zony")
 @CommandPermission("zone.admin")
 public class ZoneCommands extends BaseCommand {
+
+    public ZoneCommands() {
+        PaperCommandManager manager = DependenciesProvider.getInstance().getPaperCommandManager();
+
+        // Register Zone as context
+        manager.getCommandContexts().registerContext(Zone.class, c -> {
+            String arg = c.popFirstArg();
+            Zone zone = ZoneManager.getInstance().getZone(arg);
+            if (zone == null)
+                throw new InvalidCommandArgument("§cZóna §4" + arg + " §cneexistuje");
+            return zone;
+        });
+
+        // Register Zone as completion
+        manager.getCommandCompletions().registerAsyncCompletion("zones", c -> {
+            List<String> completions = new ArrayList<>();
+            for (Zone zone : ZoneManager.getInstance().getZones())
+                completions.add(zone.getName());
+            return completions;
+        });
+
+        // Register numeric range with increments range:5-100(10)
+        manager.getCommandCompletions().registerAsyncCompletion("range", (c) -> {
+            String config = c.getConfig();
+            if (config == null)
+                return Collections.emptyList();
+            config = config.replaceAll("[^0-9]+", " ");
+            config = config.trim();
+            int start = 0;
+            int end = 10;
+            int increment = 1;
+            if (!config.isEmpty()) {
+                String[] split = config.split(" ");
+                if (split.length >= 1)
+                    start = Integer.parseInt(split[0]);
+                if (split.length >= 2)
+                    end = Integer.parseInt(split[1]);
+                if (split.length >= 3)
+                    increment = Integer.parseInt(split[2]);
+            }
+            List<String> completions = new ArrayList<>();
+            int rangeLength = String.valueOf(end).length(); // For zero padding
+            for (int i = start; i <= end; i+=increment) {
+                completions.add(String.format("%0"+rangeLength+"d", i));
+            }
+            return completions;
+        });
+
+        // Register ids of actions of specific Zone
+        manager.getCommandCompletions().registerAsyncCompletion("zone_actions_ids", (c) -> {
+            Zone zone;
+            try {
+                zone = c.getContextValue(Zone.class, NumberUtils.createInteger(c.getConfig()));
+            } catch (InvalidCommandArgument e) {
+                zone = null;
+            }
+            if (zone == null)
+                return Collections.emptyList();
+
+            List<String> completions = new ArrayList<>();
+            for (int i = 0; i < zone.getActionsAmount(); i++) {
+                if (zone.getAction(i) != null)
+                    completions.add(String.valueOf(i));
+            }
+            return completions;
+        });
+
+        // Register action types (all)
+        manager.getCommandCompletions().registerAsyncCompletion("zone_actions_types", (c) -> {
+            List<String> completions = new ArrayList<>();
+            Map<Class<? extends Action>, List<String>> keywords = getActionKeywords();
+            for (Class<? extends Action> key : keywords.keySet()) {
+                completions.add(keywords.get(key).get(0));
+            }
+            return completions;
+        });
+
+        // Register flag types (all or of specific Zone)
+        manager.getCommandCompletions().registerAsyncCompletion("zone_flags_types", (c) -> {
+            Zone zone;
+            try {
+                zone = c.getContextValue(Zone.class, NumberUtils.createInteger(c.getConfig()));
+            } catch (InvalidCommandArgument e) {
+                zone = null;
+            }
+            List<String> completions = new ArrayList<>();
+            Map<Class<? extends Flag>, List<String>> keywords = getFlagKeywords();
+            for (Class<? extends Flag> key : keywords.keySet()) {
+                if (zone == null || zone.hasFlag(key))
+                    completions.add(keywords.get(key).get(0));
+            }
+            return completions;
+        });
+
+        // Register dynamic action params
+        manager.getCommandCompletions().registerAsyncCompletion("zone_actions_param", (c) -> {
+            int paramNumber = NumberUtils.toInt(c.getConfig(), -1);
+            if (paramNumber != 1 && paramNumber != 2 && paramNumber != 3)
+                return Collections.emptyList();
+
+            return Collections.emptyList();
+            // ZONE TODO - command completion for action params (action add + action edit commands)
+        });
+
+        // Register dynamic flag params
+        manager.getCommandCompletions().registerAsyncCompletion("zone_flags_param", (c) -> {
+            int paramNumber = NumberUtils.toInt(c.getConfig(), -1);
+            if (paramNumber != 1 && paramNumber != 2 && paramNumber != 3)
+                return Collections.emptyList();
+
+            return Collections.emptyList();
+            // ZONE TODO - command completion for flag params (flag set command)
+        });
+    }
 
     @HelpCommand
     public void baseZoneCommand(CommandSender sender, CommandHelp help) {
@@ -57,6 +198,7 @@ public class ZoneCommands extends BaseCommand {
 
     @Subcommand("create|new|define|vytvorit|nova|definovat")
     @Description("Vytvoří novou zónu")
+    @CommandCompletion("@nothing")
     public void createCommand(Player sender, String name) {
         Location p1 = DependenciesProvider.getInstance().getWorldEditSelection(sender.getName(), true);
         Location p2 = DependenciesProvider.getInstance().getWorldEditSelection(sender.getName(), false);
@@ -66,15 +208,17 @@ public class ZoneCommands extends BaseCommand {
         }
         Zone zone = new Zone(name, p1, p2);
         try {
-            ZoneManager.getInstance().addZone(zone);
+            ZoneManager.getInstance().addZone(zone, true);
         } catch (ZoneException e) {
             sender.sendMessage("§c" + e.getMessage());
+            return;
         }
         sender.sendMessage("§aZóna §2" + name + " §aúspěšně vytvořena!");
     }
 
     @Subcommand("near|around|blizko|pobliz|kolem|okolo")
     @Description("Vypíše zóny v blízkosti")
+    @CommandCompletion("@range:0-300(15)")
     public void nearCommand(Player sender, @Default("50") Integer radius) {
         Set<Zone> zones = ZoneManager.getInstance().getZones();
         if (zones.isEmpty()) {
@@ -82,12 +226,13 @@ public class ZoneCommands extends BaseCommand {
             return;
         }
         if (radius < 1) {
-            sender.sendMessage("§cNeplatný poloměr.");
-            return;
+            radius = 1;
         }
         Set<Zone> zonesNear = new LinkedHashSet<>();
+        Location loc = sender.getLocation();
         for (Zone iteratedZone : zones) {
-            if (sender.getWorld().equals(iteratedZone.getPoint1().getWorld()) && sender.getLocation().distance(iteratedZone.getCenterPoint()) < radius)
+            if (loc.getWorld().equals(iteratedZone.getPoint1().getWorld())
+                    && GeometryHelper.getInstance().intersectSphereCube(loc, radius, iteratedZone.getPoint1(), iteratedZone.getPoint2()))
                 zonesNear.add(iteratedZone);
         }
         if (zonesNear.isEmpty()) {
@@ -103,8 +248,9 @@ public class ZoneCommands extends BaseCommand {
 
     @Subcommand("list|seznam")
     @Description("Vypíše seznam zón")
-    public void listCommand(CommandSender sender, @Optional String worldName) {
-        if (worldName == null) {
+    @CommandCompletion("@worlds")
+    public void listCommand(CommandSender sender, @Optional World world) {
+        if (world == null) {
             Set<Zone> zones = ZoneManager.getInstance().getZones();
             if (zones.isEmpty()) {
                 sender.sendMessage("§cŽádné zóny nejsou vytvořeny.");
@@ -115,11 +261,6 @@ public class ZoneCommands extends BaseCommand {
             sender.sendMessage("§f" + StringUtils.join(zones, "§7, §f"));
             sender.sendMessage("§8" + StringHelper.getChatLine());
         } else {
-            World world = Bukkit.getWorld(worldName);
-            if (world == null) {
-                sender.sendMessage("§cSvět §4" + worldName + " §cneexistuje.");
-                return;
-            }
             Set<Zone> zones = new LinkedHashSet<>();
             for (Zone iteratedZone : ZoneManager.getInstance().getZones()) {
                 if (iteratedZone.getPoint1().getWorld().equals(world))
@@ -138,23 +279,37 @@ public class ZoneCommands extends BaseCommand {
 
     @Subcommand("tp|teleport")
     @Description("Teleportuje hráče k zóně")
-    public void tpCommand(Player sender, String zoneName) {
-        Zone zone = ZoneManager.getInstance().getZone(zoneName);
-        if (zone == null) {
-            sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-            return;
+    @CommandCompletion("@zones @players")
+    public void tpCommand(CommandSender sender, Zone zone, @Optional OnlinePlayer target) {
+        Player targetPlayer;
+        if (target == null) {
+            if (sender instanceof Player) {
+                targetPlayer = (Player) sender;
+            } else {
+                sender.sendMessage("§cZadej jméno hráče, kterého chceš teleportovat");
+                return;
+            }
         }
-        sender.sendMessage("§aTeleportuješ se k zóně §2" + zone.getName());
-        sender.teleport((zone.getFlagOrDefault(TpFlag.class)).getTpLocation());
+        else
+            targetPlayer = target.getPlayer();
+        if (targetPlayer.equals(sender))
+            sender.sendMessage("§aTeleportuješ se k zóně §2" + zone.getName());
+        else
+            sender.sendMessage("§aTeleportuješ hráče §2" + target.getPlayer().getName() + " §ak zóně §2" + zone.getName());
+        targetPlayer.teleport((zone.getFlagOrDefault(TpFlag.class)).getLocation());
     }
 
     @Subcommand("info|about|informace")
     @Description("Vypíše informace o zóně")
-    public void infoCommand(CommandSender sender, String zoneName) {
-        Zone zone = ZoneManager.getInstance().getZone(zoneName);
+    @CommandCompletion("@zones")
+    public void infoCommand(CommandSender sender, @Optional Zone zone) {
         if (zone == null) {
-            sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-            return;
+            try {
+                zone = getZonePlayerIsInside(sender);
+            } catch (ZoneException e) {
+                sender.sendMessage(e.getMessage());
+                return;
+            }
         }
         sender.sendMessage("§8" + StringHelper.getChatLine());
         sender.sendMessage(StringHelper.centerMessage("§aOBECNÉ INFORMACE O ZÓNĚ " + zone.getName()));
@@ -165,32 +320,41 @@ public class ZoneCommands extends BaseCommand {
         sender.sendMessage("§9Bod 2: " + StringHelper.locationToString(zone.getPoint2(), false, "§9", "§f"));
         int actions = zone.getActions().size();
         if (actions > 0)
-            sender.sendMessage("§7Seznam akcí (" + actions + "): §f/" + getExecCommandLabel() + " actions list " + zoneName);
-        sender.sendMessage("§7Seznam vlajek: §f/" + getExecCommandLabel() + " flags list " + zoneName);
+            sender.sendMessage("§7Seznam akcí (" + actions + "): §f/" + getExecCommandLabel() + " actions list " + zone.getName());
+        sender.sendMessage("§7Seznam vlajek: §f/" + getExecCommandLabel() + " flags list " + zone.getName());
         sender.sendMessage("§8" + StringHelper.getChatLine());
+    }
+
+    @Subcommand("select|sel|vybrat|vyber")
+    @Description("Vybere oblast zóny")
+    @CommandCompletion("@zones")
+    public void selectCommand(Player sender, @Optional Zone zone) {
+        if (zone == null) {
+            try {
+                zone = getZonePlayerIsInside(sender);
+            } catch (ZoneException e) {
+                sender.sendMessage(e.getMessage());
+                return;
+            }
+        }
+        DependenciesProvider.getInstance().setWorldEditSelection(sender.getName(), zone.getPoint1(), zone.getPoint2());
+        sender.sendMessage("§aVybrána oblast zóny §2" + zone);
     }
 
     @Subcommand("priority|setpriority|priorita")
     @Description("Změní prioritu zóny")
-    public void priorityCommand(CommandSender sender, String zoneName, Integer priority) {
-        Zone zone = ZoneManager.getInstance().getZone(zoneName);
-        if (zone == null) {
-            sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-            return;
-        }
+    @CommandCompletion("@zones @range:0-10")
+    public void priorityCommand(CommandSender sender, Zone zone, Integer priority) {
         zone.setPriority(priority);
         sender.sendMessage("§aPriorita zóny §2" + zone.getName() + " §anastavena na §2" + priority);
     }
 
     @Subcommand("rename|name|setname|nazev|prejmenovat|prejmenuj")
     @Description("Přejmenuje zónu")
-    public void renameCommand(CommandSender sender, String zoneName, String newName) {
-        Zone zone = ZoneManager.getInstance().getZone(zoneName);
-        if (zone == null) {
-            sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-            return;
-        }
-        if (ZoneManager.getInstance().getZone(newName) != null) {
+    @CommandCompletion("@zones @nothing")
+    public void renameCommand(CommandSender sender, Zone zone, String newName) {
+        Zone existingZoneWithNewName = ZoneManager.getInstance().getZone(newName);
+        if (existingZoneWithNewName != null && !existingZoneWithNewName.equals(zone)) { // second condition is to allow characters case changing
             sender.sendMessage("§cNázev §4" + newName + " §cse již používá.");
             return;
         }
@@ -200,12 +364,8 @@ public class ZoneCommands extends BaseCommand {
 
     @Subcommand("redefine|area|setarea|oblast")
     @Description("Změní oblast zóny podle výběru WorldEditu")
-    public void redefineCommand(CommandSender sender, String zoneName) {
-        Zone zone = ZoneManager.getInstance().getZone(zoneName);
-        if (zone == null) {
-            sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-            return;
-        }
+    @CommandCompletion("@zones")
+    public void redefineCommand(CommandSender sender, Zone zone) {
         Location p1 = DependenciesProvider.getInstance().getWorldEditSelection(sender.getName(), true);
         Location p2 = DependenciesProvider.getInstance().getWorldEditSelection(sender.getName(), false);
         if (p1 == null || p2 == null) {
@@ -218,18 +378,22 @@ public class ZoneCommands extends BaseCommand {
 
     @Subcommand("delete|remove|smazat|odstranit")
     @Description("Odstraní zónu")
-    public void deleteCommand(CommandSender sender, String zoneName) {
-        Zone zone = ZoneManager.getInstance().getZone(zoneName);
-        if (zone == null) {
-            sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-            return;
-        }
+    @CommandCompletion("@zones")
+    public void deleteCommand(CommandSender sender, Zone zone) {
         if (ZoneExecutor.getInstance().isZoneBeingExecuted(zone)) {
-            sender.sendMessage("§cV zóně §4" + zoneName + " §cprávě probíhá série akcí, zkus to za chvíli.");
+            sender.sendMessage("§cV zóně §4" + zone.getName() + " §cprávě probíhá série akcí, zkus to za chvíli.");
             return;
         }
-        ZoneManager.getInstance().deleteZone(zone);
+        ZoneManager.getInstance().deleteZone(zone, true);
         sender.sendMessage("§aZóna §2" + zone.getName() + " §abyla odstraněna!");
+    }
+
+    @Subcommand("saveall|ulozitvse")
+    @Description("Zapíše veškeré změny do databáze")
+    public void saveAllCommand(CommandSender sender) {
+        PersistenceManager pm = PersistenceManager.getInstance();
+        pm.runHibernateAsyncTask(pm::updateZoneData, true);
+        sender.sendMessage("§aUkládání spuštěno, případné chyby se objeví v konzoli a logu");
     }
 
     @Subcommand("action|actions|akce")
@@ -245,12 +409,8 @@ public class ZoneCommands extends BaseCommand {
 
         @Subcommand("list|seznam|vypsat")
         @Description("Vypíše všechny akce zóny")
-        public void actionsListCommand(CommandSender sender, String zoneName) {
-            Zone zone = ZoneManager.getInstance().getZone(zoneName);
-            if (zone == null) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion("@zones")
+        public void actionsListCommand(CommandSender sender, Zone zone) {
             sender.sendMessage("§8" + StringHelper.getChatLine());
             sender.sendMessage(StringHelper.centerMessage("§aAKCE ZÓNY " + zone.getName()));
             List<Action> actions = zone.getActions();
@@ -265,41 +425,34 @@ public class ZoneCommands extends BaseCommand {
             sender.sendMessage("§8" + StringHelper.getChatLine());
         }
 
-        @Subcommand("add|create|new|define|pridat|vytvorit|nova|definovat")
+        @Subcommand("add|set|create|new|define|pridat|nastavit|vytvorit|nova|definovat")
         @Description("Přidá novou akci do zóny")
-        public void actionsAddCommand(CommandSender sender, String zoneName, int ticks, String type, @Optional String params) {
-            Zone zone = ZoneManager.getInstance().getZone(zoneName);
-            if (zone == null) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion("@zone @range @zone_actions_types @zone_actions_param:1 @zone_actions_param:2 @zone_actions_param:3 @nothing")
+        public void actionsAddCommand(CommandSender sender, Zone zone, int ticks, String actionType, @Optional String param1, @Optional String param2, @Optional String param3, @Optional String otherParams) {
             if (ZoneExecutor.getInstance().isZoneBeingExecuted(zone)) {
-                sender.sendMessage("§cV zóně §4" + zoneName + " §cprávě probíhá série akcí, zkus to za chvíli.");
+                sender.sendMessage("§cV zóně §4" + zone.getName() + " §cprávě probíhá série akcí, zkus to za chvíli.");
                 return;
             }
             if (ticks < 0) {
-                sender.sendMessage("§cČas akce nemůže být §4" + zoneName + " §cticků.");
+                sender.sendMessage("§cČas akce nemůže být §4" + ticks + " §cticků.");
                 return;
             }
+
+            String params = (param1 != null ? param1 : "") + " " + (param2 != null ? param2 : "") + " " + (param3 != null ? param3 : "") + (otherParams != null ? otherParams : "");
+            params = params.replaceAll(" +", " ").trim();
+            if (params.isEmpty())
+                params = null;
+
             Action addedAction;
             try {
-                Map<String, List<String>> keywords = getActionKeywords();
-                if (keywords.get("commandAction").contains(type.toLowerCase())) {
-                    addedAction = constructAction(CommandAction.class, params);
-                } else if (keywords.get("damageAction").contains(type.toLowerCase())) {
-                    addedAction = constructAction(DamageAction.class, params);
-                } else if (keywords.get("messageAction").contains(type.toLowerCase())) {
-                    addedAction = constructAction(MessageAction.class, params);
-                } else if (keywords.get("nothingAction").contains(type.toLowerCase())) {
-                    addedAction = constructAction(NothingAction.class, params);
-                } else if (keywords.get("potionEffectAction").contains(type.toLowerCase())) {
-                    addedAction = constructAction(PotionEffectAction.class, params);
-                } else if (keywords.get("teleportAction").contains(type.toLowerCase())) {
-                    addedAction = constructAction(TeleportAction.class, params);
-                } else {
+                Class<? extends Action> foundActionClass = findActionClass(actionType);
+                if (foundActionClass != null)
+                    addedAction = constructAction(foundActionClass, params);
+                else {
                     List<String> firstKeywords = new ArrayList<>();
-                    for (String key : keywords.keySet()) {
-                        firstKeywords.add(keywords.get(key).get(0));
+                    Map<Class<? extends Action>, List<String>> keywordsList = getActionKeywords();
+                    for (Class<? extends Action> key : keywordsList.keySet()) {
+                        firstKeywords.add(keywordsList.get(key).get(0));
                     }
                     sender.sendMessage("§cNeplatný typ akce, dostupné jsou tyto typy akcí: §4" + StringUtils.join(firstKeywords, "§c, §4"));
                     return;
@@ -310,26 +463,28 @@ public class ZoneCommands extends BaseCommand {
             }
             addedAction.setTime(ticks);
             zone.addAction(addedAction);
-            sender.sendMessage("§aAkce úspěšně přidána k zóně §2" + zoneName + "§a!");
+            sender.sendMessage("§aAkce úspěšně přidána k zóně §2" + zone.getName() + "§a!");
         }
 
         @Subcommand("edit|change|param|params|parameter|parameters|upravit|parametr|parametry")
         @Description("Upraví parametry akce v zóně")
-        public void actionsEditCommand(CommandSender sender, String zoneName, int id, @Optional String params) {
-            Zone zone = ZoneManager.getInstance().getZone(zoneName);
-            if (zone == null) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion("@zone @zone_actions_ids:1 @zone_actions_param:1 @zone_actions_param:2 @zone_actions_param:3 @nothing")
+        public void actionsEditCommand(CommandSender sender, Zone zone, int id, @Optional String param1, @Optional String param2, @Optional String param3, @Optional String otherParams) {
             if (ZoneExecutor.getInstance().isZoneBeingExecuted(zone)) {
-                sender.sendMessage("§cV zóně §4" + zoneName + " §cprávě probíhá série akcí, zkus to za chvíli.");
+                sender.sendMessage("§cV zóně §4" + zone.getName() + " §cprávě probíhá série akcí, zkus to za chvíli.");
                 return;
             }
             Action action = zone.getAction(id);
             if (action == null) {
-                sender.sendMessage("§cV zóně §4" + zoneName + " §cneexistuje akce s ID §4" + id);
+                sender.sendMessage("§cV zóně §4" + zone.getName() + " §cneexistuje akce s ID §4" + id);
                 return;
             }
+
+            String params = (param1 != null ? param1 : "") + " " + (param2 != null ? param2 : "") + " " + (param3 != null ? param3 : "") + (otherParams != null ? otherParams : "");
+            params = params.replaceAll(" +", " ").trim();
+            if (params.isEmpty())
+                params = null;
+
             Action constructedAction;
             try {
                 constructedAction = constructAction(action.getClass(), params);
@@ -339,19 +494,15 @@ public class ZoneCommands extends BaseCommand {
             }
             zone.removeAction(action);
             zone.addActionToId(constructedAction, id);
-            sender.sendMessage("§aAkce s ID §2" + id + " §av zóně §2" + zoneName + " §abyla úspěšně upravena!");
+            sender.sendMessage("§aAkce s ID §2" + id + " §av zóně §2" + zone.getName() + " §abyla úspěšně upravena!");
         }
 
         @Subcommand("time|tick|ticks|cas|ticky")
         @Description("Změní čas akce v zóně")
-        public void actionsTimeCommand(CommandSender sender, String zoneName, int id, int ticks) {
-            Zone zone = ZoneManager.getInstance().getZone(zoneName);
-            if (zone == null) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion(("@zones @zone_actions_ids:1 @range"))
+        public void actionsTimeCommand(CommandSender sender, Zone zone, int id, int ticks) {
             if (ZoneExecutor.getInstance().isZoneBeingExecuted(zone)) {
-                sender.sendMessage("§cV zóně §4" + zoneName + " §cprávě probíhá série akcí, zkus to za chvíli.");
+                sender.sendMessage("§cV zóně §4" + zone.getName() + " §cprávě probíhá série akcí, zkus to za chvíli.");
                 return;
             }
             if (ticks < 0) {
@@ -360,7 +511,7 @@ public class ZoneCommands extends BaseCommand {
             }
             Action action = zone.getAction(id);
             if (action == null) {
-                sender.sendMessage("§cV zóně §4" + zoneName + " §cneexistuje akce s ID §4" + id);
+                sender.sendMessage("§cV zóně §4" + zone.getName() + " §cneexistuje akce s ID §4" + id);
                 return;
             }
             zone.removeAction(action);
@@ -371,19 +522,15 @@ public class ZoneCommands extends BaseCommand {
 
         @Subcommand("id|index|identifikator|number|cislo")
         @Description("Změní ID akce v zóně")
-        public void actionsIdCommand(CommandSender sender, String zoneName, int oldId, int newId) {
-            Zone zone = ZoneManager.getInstance().getZone(zoneName);
-            if (zone == null) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion(("@zones @zone_actions_ids:1 @range"))
+        public void actionsIdCommand(CommandSender sender, Zone zone, int oldId, int newId) {
             if (ZoneExecutor.getInstance().isZoneBeingExecuted(zone)) {
-                sender.sendMessage("§cV zóně §4" + zoneName + " §cprávě probíhá série akcí, zkus to za chvíli.");
+                sender.sendMessage("§cV zóně §4" + zone.getName() + " §cprávě probíhá série akcí, zkus to za chvíli.");
                 return;
             }
             Action action = zone.getAction(oldId);
             if (action == null) {
-                sender.sendMessage("§cV zóně §4" + zoneName + " §cneexistuje akce s ID §4" + oldId);
+                sender.sendMessage("§cV zóně §4" + zone.getName() + " §cneexistuje akce s ID §4" + oldId);
                 return;
             }
             zone.removeAction(action);
@@ -391,25 +538,21 @@ public class ZoneCommands extends BaseCommand {
             sender.sendMessage("§aID akce změněn z §2" + oldId + " §ana §2" + finalId + " §av zóně §2" + zone.getName() + "§a!");
         }
 
-        @Subcommand("delete|remove|smazat|odstranit")
+        @Subcommand("delete|remove|unset|smazat|odstranit|odebrat|zrusit")
         @Description("Odstraní akci v zóně")
-        public void actionsDeleteCommand(CommandSender sender, String zoneName, int id) {
-            Zone zone = ZoneManager.getInstance().getZone(zoneName);
-            if (zone == null) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion(("@zones @zone_actions_ids:1"))
+        public void actionsDeleteCommand(CommandSender sender, Zone zone, int id) {
             if (ZoneExecutor.getInstance().isZoneBeingExecuted(zone)) {
-                sender.sendMessage("§cV zóně §4" + zoneName + " §cprávě probíhá série akcí, zkus to za chvíli.");
+                sender.sendMessage("§cV zóně §4" + zone.getName() + " §cprávě probíhá série akcí, zkus to za chvíli.");
                 return;
             }
             if (zone.getActionsAmount() == 0) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cnemá nastaveny žádné akce.");
+                sender.sendMessage("§cZóna §4" + zone.getName() + " §cnemá nastaveny žádné akce.");
                 return;
             }
             Action action = zone.getAction(id);
             if (action == null) {
-                sender.sendMessage("§cV zóně §4" + zoneName + " §cneexistuje akce s ID §4" + id);
+                sender.sendMessage("§cV zóně §4" + zone.getName() + " §cneexistuje akce s ID §4" + id);
                 return;
             }
             zone.removeAction(action);
@@ -418,24 +561,19 @@ public class ZoneCommands extends BaseCommand {
 
         @Subcommand("purge|deleteall|removeall|smazatvse|odstranitvse")
         @Description("Odstraní všechny akce v zóně")
-        public void actionsPurgeCommand(CommandSender sender, String zoneName) {
-            Zone zone = ZoneManager.getInstance().getZone(zoneName);
-            if (zone == null) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion("@zones")
+        public void actionsPurgeCommand(CommandSender sender, Zone zone) {
             if (ZoneExecutor.getInstance().isZoneBeingExecuted(zone)) {
-                sender.sendMessage("§cV zóně §4" + zoneName + " §cprávě probíhá série akcí, zkus to za chvíli.");
+                sender.sendMessage("§cV zóně §4" + zone.getName() + " §cprávě probíhá série akcí, zkus to za chvíli.");
                 return;
             }
             if (zone.getActionsAmount() == 0) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cnemá nastaveny žádné akce.");
+                sender.sendMessage("§cZóna §4" + zone.getName() + " §cnemá nastaveny žádné akce.");
                 return;
             }
             zone.removeAllActions();
             sender.sendMessage("§aVšechny akce v zóně §2" + zone.getName() + " §abyly odstraněny!");
         }
-
     }
 
     @Subcommand("flag|flags|flagy|vlajka|vlajky")
@@ -451,24 +589,25 @@ public class ZoneCommands extends BaseCommand {
 
         @Subcommand("list|seznam|vypsat")
         @Description("Vypíše aktuální flagy zóny")
-        public void flagsListCommand(CommandSender sender, String zoneName) {
-            Zone zone = ZoneManager.getInstance().getZone(zoneName);
-            if (zone == null) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion("@zones")
+        public void flagsListCommand(CommandSender sender, Zone zone) {
             sender.sendMessage("§8" + StringHelper.getChatLine());
             sender.sendMessage(StringHelper.centerMessage("§aVLAJKY ZÓNY " + zone.getName()));
 
             sender.sendMessage("§bTeleport");
             String color = zone.hasFlag(TpFlag.class) ? "§e" : "§f";
             TpFlag tpFlag = zone.getFlagOrDefault(TpFlag.class);
-            sender.sendMessage("§9Pozice: " + StringHelper.locationToString(tpFlag.getTpLocation(), true, "§9", color));
+            sender.sendMessage("§9Pozice: " + StringHelper.locationToString(tpFlag.getLocation(), true, "§9", color));
 
             sender.sendMessage("§bEnder portály");
             EnderPortalFlag enderPortalFlag = zone.getFlagOrDefault(EnderPortalFlag.class);
             color = zone.hasFlag(EnderPortalFlag.class) ? "§e" : "§f";
             sender.sendMessage("§9Fungují: " + color + (enderPortalFlag.isEnderPortalEnabled() ? "ANO" : "NE"));
+
+            sender.sendMessage("§bPenalizace za odpojení");
+            DisconnectPenaltyFlag disconnectPenaltyFlag = zone.getFlagOrDefault(DisconnectPenaltyFlag.class);
+            color = zone.hasFlag(DisconnectPenaltyFlag.class) ? "§e" : "§f";
+            sender.sendMessage("§9Šance že item vypadne: " + color + Utils.twoDecimal(disconnectPenaltyFlag.getPenalty()) + " %");
 
             sender.sendMessage("§bParticly");
             ParticlesFlag particlesFlag = zone.getFlagOrDefault(ParticlesFlag.class);
@@ -476,28 +615,135 @@ public class ZoneCommands extends BaseCommand {
             sender.sendMessage("§9Typ: " + color + (particlesFlag.getParticle() == null ? "---" : particlesFlag.getParticle().name()));
             sender.sendMessage("§9Hustota: " + color + particlesFlag.getDensity());
             if (Utils.isParticleColorizable(particlesFlag.getParticle())) {
-                sender.sendMessage("§9Barva: Č: " + color + particlesFlag.getRed() + "§9, Z: " + color + particlesFlag.getGreen() + "§9, M: " + color + particlesFlag.getBlue());
+                sender.sendMessage("§9Barva: " + color + particlesFlag.getColor());
             }
+
+            sender.sendMessage("§bBlokované příkazy");
+            BlockedCommandsFlag blockedCommandsFlag = zone.getFlagOrDefault(BlockedCommandsFlag.class);
+            color = zone.hasFlag(BlockedCommandsFlag.class) ? "§e" : "§f";
+            Set<String> blockedCmds = blockedCommandsFlag.getCommands();
+            if (blockedCmds.isEmpty())
+                sender.sendMessage("§9Seznam: " + color + "žádné blokované příkazy");
+            else
+                sender.sendMessage("§9Seznam: " + color + StringUtils.join(blockedCmds, ", "));
 
             sender.sendMessage("§bDoly");
             MineFlag mineFlag = zone.getFlagOrDefault(MineFlag.class);
             color = zone.hasFlag(MineFlag.class) ? "§e" : "§f";
-            sender.sendMessage("§9Bloky: " + color + mineFlag.getBlocksAsString());
+            String blocksString;
+            try {
+                blocksString = mineFlag.getBlocksAsString();
+                if (blocksString.isEmpty())
+                    blocksString = "---";
+            } catch (ZoneException e) {
+                blocksString = "Chyba: " + e.getMessage();
+            }
+            sender.sendMessage("§9Bloky: " + color + blocksString);
             sender.sendMessage("§9Doplnění při: " + color + mineFlag.getRegenPercentage() + " % §9bloků");
             sender.sendMessage("§8" + StringHelper.getChatLine());
         }
 
-        @Subcommand("set|change|define|nastavit|zmenit|definovat")
+        @Subcommand("set|add|change|define|nastavit|pridat|zmenit|definovat")
         @Description("Nastaví flag v zóně")
-        public void flagsSetCommand(CommandSender sender, String zoneName, String type, @Optional String params) {
-            Zone zone = ZoneManager.getInstance().getZone(zoneName);
-            if (zone == null) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion("@zone @zone_flag_types @zone_flags_param:1 @zone_flags_param:2 @zone_flags_param:3 @nothing")
+        public void flagsSetCommand(CommandSender sender, Zone zone, String flagType, @Optional String param1, @Optional String param2, @Optional String param3, @Optional String otherParams) {
+            String zoneName = zone.getName();
 
-            Map<String, List<String>> keywords = getFlagKeywords();
-            if (keywords.get("enderPortalFlag").contains(type.toLowerCase())) {
+            String params = (param1 != null ? param1 : "") + " " + (param2 != null ? param2 : "") + " " + (param3 != null ? param3 : "") + (otherParams != null ? otherParams : "");
+            params = params.replaceAll(" +", " ").trim();
+            if (params.isEmpty())
+                params = null;
+
+            Class<? extends Flag> foundFlagClass = findFlagClass(flagType);
+            if (foundFlagClass == BlockedCommandsFlag.class) {
+                Map<String, List<String>> paramWords = new HashMap<>();
+                paramWords.put("add", Arrays.asList("add", "insert", "pridat"));
+                paramWords.put("remove", Arrays.asList("remove", "delete", "odebrat", "odstranit"));
+                paramWords.put("set", Arrays.asList("set", "nastavit"));
+                paramWords.put("clear", Arrays.asList("clear", "purge", "empty", "vyprazdnit"));
+                List<String> firstParamWords = new ArrayList<>();
+                for (String word : paramWords.keySet()) {
+                    firstParamWords.add(paramWords.get(word).get(0));
+                }
+
+                if (params == null) {
+                    sender.sendMessage("§cMusíš zadat, co chceš s blokovanými příkazy dělat, ve formátu <akce> [příkazy]");
+                    sender.sendMessage("§cDostupné jsou tyto akce: §4" + StringUtils.join(firstParamWords, "§c, §4"));
+                    return;
+                }
+
+                String[] splitWords = params.split(" ");
+                BlockedCommandsFlag flag = zone.getFlagOrDefault(BlockedCommandsFlag.class);
+
+                String[] commands = params.contains(" ") ? params.substring(params.indexOf(" ")).trim().split(",") : null;
+                if (paramWords.get("add").contains(splitWords[0].toLowerCase())) {
+                    if (commands == null) {
+                        sender.sendMessage("§cMusíš zadat blokované příkazy k přidání oddělené čárkami");
+                        return;
+                    }
+                    for (String command : commands) {
+                        flag.addCommand(command);
+                    }
+                    zone.setFlag(flag);
+                    sender.sendMessage("§aBlokované příkazy přidány do zóny §2" + zoneName);
+                    sender.sendMessage("§fAktuálně blokované příkazy jsou: §7" + StringUtils.join(flag.getCommands(), "§f, §7"));
+                } else if (paramWords.get("remove").contains(splitWords[0].toLowerCase())) {
+                    if (commands == null) {
+                        sender.sendMessage("§cMusíš zadat blokované příkazy k odebrání oddělené čárkami");
+                        return;
+                    }
+                    for (String command : commands) {
+                        flag.removeCommand(command);
+                    }
+                    zone.setFlag(flag);
+                    sender.sendMessage("§aBlokované příkazy odebrány ze zóny §2" + zoneName);
+                    sender.sendMessage("§fAktuálně blokované příkazy jsou: §7" + StringUtils.join(flag.getCommands(), "§f, §7"));
+                } else if (paramWords.get("set").contains(splitWords[0].toLowerCase())) {
+                    if (commands == null) {
+                        sender.sendMessage("§cMusíš zadat blokované příkazy k nastavení oddělené čárkami");
+                        return;
+                    }
+                    flag.purgeCommands();
+                    for (String command : commands) {
+                        flag.addCommand(command);
+                    }
+                    zone.setFlag(flag);
+                    sender.sendMessage("§aBlokované příkazy nastaveny v zóně §2" + zoneName);
+                    sender.sendMessage("§fAktuálně blokované příkazy jsou: §7" + StringUtils.join(flag.getCommands(), "§f, §7"));
+                } else if (paramWords.get("clear").contains(splitWords[0].toLowerCase())) {
+                    zone.unsetFlag(BlockedCommandsFlag.class);
+                    sender.sendMessage("§aFlag blokovaných příkazů odebrán ze zóny §2" + zoneName);
+                } else {
+                    sender.sendMessage("§cNeznámá akce, dostupné jsou tyto akce: §4" + StringUtils.join(firstParamWords, "§c, §4"));
+                }
+            } else if (foundFlagClass == DisconnectPenaltyFlag.class) {
+                if (params == null) {
+                    sender.sendMessage("§cMusíš zadat procentuální šanci na drop itemů po odpojení hráče");
+                    return;
+                }
+                // Remove possible percent symbol
+                String firstWord = params.split(" ")[0];
+                if (firstWord.charAt(firstWord.length()-1) == '%')
+                    firstWord = firstWord.substring(0, firstWord.length()-1);
+
+                // Convert chance
+                double chance;
+                try {
+                    chance = Double.parseDouble(firstWord);
+                } catch (NumberFormatException ex) {
+                    sender.sendMessage("§cNeplatná procentuální šance na drop itemů po odpojení hráče");
+                    return;
+                }
+                if (chance < 0)
+                    chance = 0;
+                if (chance > 100)
+                    chance = 100;
+
+                DisconnectPenaltyFlag flag = new DisconnectPenaltyFlag();
+                flag.setPenalty(chance);
+                zone.setFlag(flag);
+                sender.sendMessage("§aŠance na drop itemů při odpojení v zóně §2" + zoneName + " §anastavena na " + Utils.twoDecimal(chance) + " %.");
+            } else if (foundFlagClass == EnderPortalFlag.class) {
                 if (params == null) {
                     sender.sendMessage("§cMusíš zadat, zda mají být ender portály zapnuty (on) nebo vypnuty (off)");
                     return;
@@ -516,7 +762,7 @@ public class ZoneCommands extends BaseCommand {
                 } else {
                     sender.sendMessage("§cMusíš zadat, zda mají být ender portály zapnuty (on) nebo vypnuty (off)");
                 }
-            } else if (keywords.get("mineFlag").contains(type.toLowerCase())) {
+            } else if (foundFlagClass == MineFlag.class) {
                 Map<String, List<String>> paramWords = new HashMap<>();
                 paramWords.put("blocks", Arrays.asList("blocks", "block", "bloky", "blok"));
                 paramWords.put("regenPercent", Arrays.asList("regenpercent", "regenpercents", "regen", "percent", "percents", "procent", "procenta", "regenerace"));
@@ -541,7 +787,7 @@ public class ZoneCommands extends BaseCommand {
                     }
                     MineFlag flag = zone.getFlagOrDefault(MineFlag.class);
                     try {
-                        flag.setBlocksFromString(splitWords[1]);
+                        flag.setBlocksFromString(splitWords[1].toUpperCase());
                     } catch (ZoneException e) {
                         sender.sendMessage(e.getMessage());
                         return;
@@ -554,9 +800,9 @@ public class ZoneCommands extends BaseCommand {
                         return;
                     }
                     MineFlag flag = zone.getFlagOrDefault(MineFlag.class);
-                    double percentageParam;
+                    float percentageParam;
                     try {
-                        percentageParam = Double.parseDouble(splitWords[1]);
+                        percentageParam = Float.parseFloat(splitWords[1]);
                     } catch (NumberFormatException e) {
                         sender.sendMessage("§cZadaná min. procenta pro regenerace dolů nejsou platná");
                         return;
@@ -569,16 +815,16 @@ public class ZoneCommands extends BaseCommand {
                     flag.setRegenPercentage(percentageParam);
                     zone.setFlag(flag);
                     sender.sendMessage("§aMin. procent bloků pro regeneraci dolu zóny §2" + zoneName + " §abyl nastaven na §2" + percentageParam + "§a%.");
+                    if (percentageParam >= 100.0)
+                        sender.sendMessage("§a100% by znamenalo, že se budou doly obnovovat pořád, proto budou vypnuty.");
                 } else {
                     sender.sendMessage("§cNeznámý parametr, dostupné jsou tyto parametry: §4" + StringUtils.join(firstParamWords, "§c, §4"));
                 }
-            } else if (keywords.get("particlesFlag").contains(type.toLowerCase())) {
+            } else if (foundFlagClass == ParticlesFlag.class) {
                 Map<String, List<String>> paramWords = new HashMap<>();
                 paramWords.put("particle", Arrays.asList("particles", "particle", "type", "particly", "partikly", "typ", "castice", "efekt", "efekty"));
                 paramWords.put("density", Arrays.asList("density", "amount", "count", "hustota", "mnozstvi", "pocet"));
-                paramWords.put("red", Arrays.asList("red", "r", "cerveny", "cervena", "cervene"));
-                paramWords.put("green", Arrays.asList("green", "g", "zeleny", "zelena", "zelene"));
-                paramWords.put("blue", Arrays.asList("blue", "b", "modry", "modra", "modre"));
+                paramWords.put("color", Arrays.asList("color", "col", "colors", "barva", "barvy"));
                 List<String> firstParamWords = new ArrayList<>();
                 for (String word : paramWords.keySet()) {
                     firstParamWords.add(paramWords.get(word).get(0));
@@ -628,85 +874,42 @@ public class ZoneCommands extends BaseCommand {
                     flag.setDensity(densityParam);
                     zone.setFlag(flag);
                     sender.sendMessage("§aHustota zobrazovaných částic zóny §2" + zoneName + " §abyla nastavena na §2" + densityParam + "§a.");
-                } else if (paramWords.get("red").contains(splitWords[0].toLowerCase())) {
+                } else if (paramWords.get("color").contains(splitWords[0].toLowerCase())) {
                     if (splitWords.length < 2) {
-                        sender.sendMessage("§cMusíš zadat komponentu červené barvy částic (0-255)");
+                        sender.sendMessage("§cMusíš zadat název barvy, například mustard_brown, 205,122,0 nebo #CD7A00");
                         return;
                     }
                     ParticlesFlag flag = zone.getFlagOrDefault(ParticlesFlag.class);
-                    int redParam;
+                    Color color;
                     try {
-                        redParam = Integer.parseInt(splitWords[1]);
-                    } catch (NumberFormatException e) {
-                        sender.sendMessage("§cZadaná komponenta červené barvy není platná");
+                        if (splitWords[1].indexOf(',') != -1)
+                            color = new Color(splitWords[1], ",");
+                        else
+                            color = new Color(splitWords[1]);
+                    } catch (IllegalArgumentException e) {
+                        sender.sendMessage("§c" + e.getMessage());
                         return;
                     }
-                    if (redParam < 0) {
-                        redParam = 0;
-                    }
-                    if (redParam > 255)
-                        redParam = 255;
-                    flag.setRed(redParam);
+                    flag.setColor(color);
                     zone.setFlag(flag);
-                    sender.sendMessage("§aKomponenta červené barvy částic zóny §2" + zoneName + " §abyla nastavena na §2" + redParam + "§a.");
-                } else if (paramWords.get("green").contains(splitWords[0].toLowerCase())) {
-                    if (splitWords.length < 2) {
-                        sender.sendMessage("§cMusíš zadat komponentu zelené barvy částic (0-255)");
-                        return;
-                    }
-                    ParticlesFlag flag = zone.getFlagOrDefault(ParticlesFlag.class);
-                    int greenParam;
-                    try {
-                        greenParam = Integer.parseInt(splitWords[1]);
-                    } catch (NumberFormatException e) {
-                        sender.sendMessage("§cZadaná komponenta zelené barvy není platná");
-                        return;
-                    }
-                    if (greenParam < 0) {
-                        greenParam = 0;
-                    }
-                    if (greenParam > 255)
-                        greenParam = 255;
-                    flag.setGreen(greenParam);
-                    zone.setFlag(flag);
-                    sender.sendMessage("§aKomponenta zelené barvy částic zóny §2" + zoneName + " §abyla nastavena na §2" + greenParam + "§a.");
-                } else if (paramWords.get("blue").contains(splitWords[0].toLowerCase())) {
-                    if (splitWords.length < 2) {
-                        sender.sendMessage("§cMusíš zadat komponentu modré barvy částic (0-255)");
-                        return;
-                    }
-                    ParticlesFlag flag = zone.getFlagOrDefault(ParticlesFlag.class);
-                    int blueParam;
-                    try {
-                        blueParam = Integer.parseInt(splitWords[1]);
-                    } catch (NumberFormatException e) {
-                        sender.sendMessage("§cZadaná komponenta modré barvy není platná");
-                        return;
-                    }
-                    if (blueParam < 0) {
-                        blueParam = 0;
-                    }
-                    if (blueParam > 255)
-                        blueParam = 255;
-                    flag.setBlue(blueParam);
-                    zone.setFlag(flag);
-                    sender.sendMessage("§aKomponenta modré barvy částic zóny §2" + zoneName + " §abyla nastavena na §2" + blueParam + "§a.");
-                }  else {
+                    sender.sendMessage("§aBarva částic zóny §2" + zoneName + " §abyla nastavena na §2" + color + "§a.");
+                } else {
                     sender.sendMessage("§cNeznámý parametr, dostupné jsou tyto parametry: §4" + StringUtils.join(firstParamWords, "§c, §4"));
                 }
-            } else if (keywords.get("tpFlag").contains(type.toLowerCase())) {
+            } else if (foundFlagClass == TpFlag.class) {
                 if (!(sender instanceof Player)) {
                     sender.sendMessage("§cTento flag z konzole nastavit nelze.");
                     return;
                 }
                 Player player = (Player)sender;
                 TpFlag flag = new TpFlag();
-                flag.setTpLocation(player.getLocation());
+                flag.setLocation(player.getLocation());
                 zone.setFlag(flag);
                 sender.sendMessage("§aMísto teleportu zóny §2" + zoneName + " §anastaveno na tvou pozici.");
             } else {
                 List<String> firstKeywords = new ArrayList<>();
-                for (String key : keywords.keySet()) {
+                Map<Class<? extends Flag>, List<String>> keywords = getFlagKeywords();
+                for (Class<? extends Flag> key : keywords.keySet()) {
                     firstKeywords.add(keywords.get(key).get(0));
                 }
                 sender.sendMessage("§cNeplatný flag, dostupné jsou tyto flagy: §4" + StringUtils.join(firstKeywords, "§c, §4"));
@@ -715,38 +918,26 @@ public class ZoneCommands extends BaseCommand {
 
         @Subcommand("unset|clear|delete|remove|undefine|zrusit|smazat|odstranit|odebrat")
         @Description("Zruší nastavení flagu v zóně")
-        public void flagsUnsetCommand(CommandSender sender, String zoneName, String type, @Optional String params) {
-            Zone zone = ZoneManager.getInstance().getZone(zoneName);
-            if (zone == null) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion("@zones @zone_flags_types:1")
+        public void flagsUnsetCommand(CommandSender sender, Zone zone, String flagType) {
+            Class<? extends Flag> foundFlagClass = findFlagClass(flagType);
 
-            Class<? extends Flag> flagType;
-            Map<String, List<String>> keywords = getFlagKeywords();
-            if (keywords.get("enderPortalFlag").contains(type.toLowerCase())) {
-                flagType = EnderPortalFlag.class;
-            } else if (keywords.get("mineFlag").contains(type.toLowerCase())) {
-                flagType = MineFlag.class;
-            } else if (keywords.get("particlesFlag").contains(type.toLowerCase())) {
-                flagType = ParticlesFlag.class;
-            } else if (keywords.get("tpFlag").contains(type.toLowerCase())) {
-                flagType = TpFlag.class;
-            } else {
+            if (foundFlagClass == null) {
                 List<String> firstKeywords = new ArrayList<>();
-                for (String key : keywords.keySet()) {
-                    firstKeywords.add(keywords.get(key).get(0));
+                Map<Class<? extends Flag>, List<String>> keywordsMap = getFlagKeywords();
+                for (Class<? extends Flag> key : keywordsMap.keySet()) {
+                    firstKeywords.add(keywordsMap.get(key).get(0));
                 }
                 sender.sendMessage("§cNeplatný flag, dostupné jsou tyto flagy: §4" + StringUtils.join(firstKeywords, "§c, §4"));
                 return;
             }
 
-            if (!zone.hasFlag(flagType)) {
-                sender.sendMessage("§cZóna §4" + zoneName + " §ctento flag nemá nastaven.");
+            if (!zone.hasFlag(foundFlagClass)) {
+                sender.sendMessage("§cZóna §4" + zone.getName() + " §ctento flag nemá nastaven.");
                 return;
             }
-            zone.unsetFlag(flagType);
-            sender.sendMessage("§aFlag §2" + type + " §abyl odebrán ze zóny §2" + zoneName + " §a.");
+            zone.unsetFlag(foundFlagClass);
+            sender.sendMessage("§aFlag §2" + foundFlagClass + " §abyl odebrán ze zóny §2" + zone.getName() + " §a.");
         }
 
     }
@@ -758,23 +949,15 @@ public class ZoneCommands extends BaseCommand {
         public void baseCopyCommand(CommandSender sender, CommandHelp help) {
             sender.sendMessage("§8" + StringHelper.getChatLine());
             sender.sendMessage(StringHelper.centerMessage("§aNÁPOVĚDA K ZÓNÁM"));
-            help.showHelp();
             sender.sendMessage("§8" + StringHelper.getChatLine());
         }
 
         @Subcommand("action|actions|akce")
         @Description("Zkopíruje akce ze zóny do jiné zóny")
-        public void copyActionsCommand(CommandSender sender, String sourceZoneName, String targetZoneName, @Optional Integer sourceActionId, @Optional Integer newActionId) {
-            Zone sourceZone = ZoneManager.getInstance().getZone(sourceZoneName);
-            if (sourceZone == null) {
-                sender.sendMessage("§cZdrojová zóna §4" + sourceZoneName + " §cneexistuje.");
-                return;
-            }
-            Zone targetZone = ZoneManager.getInstance().getZone(targetZoneName);
-            if (targetZone == null) {
-                sender.sendMessage("§cCílová zóna §4" + targetZoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion(("@zones @zones @zone_actions_ids:1 @range"))
+        public void copyActionsCommand(CommandSender sender, Zone sourceZone, Zone targetZone, @Optional Integer sourceActionId, @Optional Integer newActionId) {
+            String sourceZoneName = sourceZone.getName();
+            String targetZoneName = targetZone.getName();
             if (sourceZone.getActionsAmount() == 0) {
                 sender.sendMessage("§cZdrojová zóna §4" + sourceZoneName + " §cneobsahuje žádné akce.");
                 return;
@@ -812,80 +995,107 @@ public class ZoneCommands extends BaseCommand {
 
         @Subcommand("flag|flags|flagy|vlajka|vlajky")
         @Description("Zkopíruje flagy ze zóny do jiné zóny")
-        public void copyFlagsCommand(CommandSender sender, String sourceZoneName, String targetZoneName, @Optional String flagType) {
-            Zone sourceZone = ZoneManager.getInstance().getZone(sourceZoneName);
-            if (sourceZone == null) {
-                sender.sendMessage("§cZdrojová zóna §4" + sourceZoneName + " §cneexistuje.");
-                return;
-            }
-            Zone targetZone = ZoneManager.getInstance().getZone(targetZoneName);
-            if (targetZone == null) {
-                sender.sendMessage("§cCílová zóna §4" + targetZoneName + " §cneexistuje.");
-                return;
-            }
+        @CommandCompletion("@zones @zones zone_flags_types:1")
+        public void copyFlagsCommand(CommandSender sender, Zone sourceZone, Zone targetZone, @Optional String flagType) {
             if (flagType == null) {
                 for (Flag flag : sourceZone.getAllFlags()) {
-                    targetZone.setFlag(flag);
+                    targetZone.setFlag(flag.copy());
                 }
-                sender.sendMessage("§aVšechny flagy ze zóny §2" + sourceZoneName + " §abyly zkopírovány do zóny §2" + targetZoneName + "§a.");
+                sender.sendMessage("§aVšechny flagy ze zóny §2" + sourceZone.getName() + " §abyly zkopírovány do zóny §2" + targetZone.getName() + "§a.");
             } else {
-                Class<? extends Flag> flagTypeClass;
-                Map<String, List<String>> keywords = getFlagKeywords();
-                if (keywords.get("enderPortalFlag").contains(flagType.toLowerCase())) {
-                    flagTypeClass = EnderPortalFlag.class;
-                } else if (keywords.get("mineFlag").contains(flagType.toLowerCase())) {
-                    flagTypeClass = MineFlag.class;
-                } else if (keywords.get("particlesFlag").contains(flagType.toLowerCase())) {
-                    flagTypeClass = ParticlesFlag.class;
-                } else if (keywords.get("tpFlag").contains(flagType.toLowerCase())) {
-                    flagTypeClass = TpFlag.class;
-                } else {
+                Class<? extends Flag> foundFlagClass = findFlagClass(flagType);
+
+                if (foundFlagClass == null) {
                     List<String> firstKeywords = new ArrayList<>();
-                    for (String key : keywords.keySet()) {
-                        firstKeywords.add(keywords.get(key).get(0));
+                    Map<Class<? extends Flag>, List<String>> keywordsMap = getFlagKeywords();
+                    for (Class<?> key : keywordsMap.keySet()) {
+                        firstKeywords.add(keywordsMap.get(key).get(0));
                     }
                     sender.sendMessage("§cNeplatný flag, dostupné jsou tyto flagy: §4" + StringUtils.join(firstKeywords, "§c, §4"));
                     return;
                 }
 
-                if (!sourceZone.hasFlag(flagTypeClass)) {
-                    sender.sendMessage("§cZdrojová zóna §4" + sourceZoneName + " §cnemá nastaven flag §4" + flagType + "§c.");
+                if (!sourceZone.hasFlag(foundFlagClass)) {
+                    sender.sendMessage("§cZdrojová zóna §4" + sourceZone.getName() + " §cnemá nastaven flag §4" + flagType + "§c.");
                     return;
                 }
 
-                targetZone.setFlag(sourceZone.getFlagOrDefault(flagTypeClass));
-                sender.sendMessage("§aFlag §2" + flagType + " §abyl zkopírován ze zóny §2" + sourceZoneName + "§a do zóny §2" + targetZoneName + "§a.");
+                targetZone.setFlag(sourceZone.getFlagOrDefault(foundFlagClass).copy());
+                sender.sendMessage("§aFlag §2" + flagType + " §abyl zkopírován ze zóny §2" + sourceZone.getName() + "§a do zóny §2" + targetZone.getName() + "§a.");
             }
 
         }
 
         @Subcommand("all|zone|everything|both|vse|vsechno|zona|zonu|oboje|oba")
         @Description("Zkopíruje flagy a akce ze zóny do jiné zóny")
-        public void copyAllCommand(CommandSender sender, String sourceZoneName, String targetZoneName) {
-            copyActionsCommand(sender, sourceZoneName, targetZoneName, null, null);
-            copyFlagsCommand(sender, sourceZoneName, targetZoneName, null);
+        @CommandCompletion("@zones @zones")
+        public void copyAllCommand(CommandSender sender, Zone sourceZone, Zone targetZone) {
+            copyActionsCommand(sender, sourceZone, targetZone, null, null);
+            copyFlagsCommand(sender, sourceZone, targetZone, null);
         }
-
     }
 
-    private Map<String, List<String>> getActionKeywords() {
-        Map<String, List<String>> keywords = new HashMap<>();
-        keywords.put("commandAction", Arrays.asList("command", "cmd", "prikaz"));
-        keywords.put("damageAction", Arrays.asList("damage", "dmg", "harm", "hurt", "attack", "zranit", "zraneni", "poskozeni"));
-        keywords.put("messageAction", Arrays.asList("message", "msg", "zprava", "text", "chat"));
-        keywords.put("nothingAction", Arrays.asList("nothing", "null", "none", "-", "--", "---", "empty", "filler", "nic"));
-        keywords.put("potionEffectAction", Arrays.asList("potion", "pot", "effect", "lektvar", "efekt"));
-        keywords.put("teleportAction", Arrays.asList("teleport", "tp", "port"));
+    // Helper method, used in several places in this class
+    private Zone getZonePlayerIsInside(CommandSender sender) throws ZoneException {
+        Zone zone;
+        if (sender instanceof Player) {
+            Set<Zone> zones = ZoneManager.getInstance().getZonesPlayerIsInside((Player)sender);
+            if (zones.isEmpty())
+                throw new ZoneException("§cMusíš zadát název zóny nebo v nějaké stát.");
+            else if (zones.size() == 1)
+                zone = zones.stream().findAny().get();
+            else
+                throw new ZoneException("§cMusíš zadát název zóny\n§6Stojíš v těchto zónách: §e" + StringUtils.join(zones, "§6, §e"));
+        }
+        else
+            throw new ZoneException("§cMusíš zadát název zóny");
+        return zone;
+    }
+
+    private Map<Class<? extends Action>, List<String>> getActionKeywords() {
+        Map<Class<? extends Action>, List<String>> keywords = new HashMap<>();
+        keywords.put(CommandAction.class, Arrays.asList("command", "cmd", "prikaz"));
+        keywords.put(DamageAction.class, Arrays.asList("damage", "dmg", "harm", "hurt", "attack", "zranit", "zraneni", "poskozeni"));
+        keywords.put(MessageAction.class, Arrays.asList("message", "msg", "zprava", "text", "chat"));
+        keywords.put(NothingAction.class, Arrays.asList("nothing", "null", "none", "-", "--", "---", "empty", "filler", "nic"));
+        keywords.put(PotionEffectAction.class, Arrays.asList("potion", "pot", "effect", "lektvar", "efekt"));
+        keywords.put(TeleportAction.class, Arrays.asList("teleport", "tp", "port"));
         return keywords;
     }
 
-    private Map<String, List<String>> getFlagKeywords() {
-        Map<String, List<String>> keywords = new HashMap<>();
-        keywords.put("enderPortalFlag", Arrays.asList("enderportal", "enderport", "ender"));
-        keywords.put("mineFlag", Arrays.asList("mine", "mines", "dul", "doly"));
-        keywords.put("particlesFlag", Arrays.asList("particles", "particle", "particly", "partikly", "castice", "efekt", "efekty"));
-        keywords.put("tpFlag", Arrays.asList("tp", "port", "teleport", "spawn"));
+    private Class<? extends Action> findActionClass(String input) {
+        input = input.toLowerCase();
+        for (Map.Entry<Class<? extends Action>, List<String>> entry : getActionKeywords().entrySet()) {
+            Class<? extends Action> clazz = entry.getKey();
+            List<String> keywords = entry.getValue();
+            if (keywords.contains(input)) {
+                return clazz;
+            }
+        }
+        return null;
+    }
+
+    private Map<Class<? extends Flag>, List<String>> getFlagKeywords() {
+        Map<Class<? extends Flag>, List<String>> keywords = new HashMap<>();
+        keywords.put(BlockedCommandsFlag.class, Arrays.asList("cmd", "cmds", "command", "commands", "blockcmd", "blockedcmd", "blockcommand", "blockedcommand", "blockcommands", "blockedcommands"));
+        keywords.put(DisconnectPenaltyFlag.class, Arrays.asList("dsc", "disconnect", "penalty", "disconnectpenalty", "dscpenalty", "disdrop", "penalizace", "odpojeni"));
+        keywords.put(EnderPortalFlag.class, Arrays.asList("enderportal", "enderport", "ender"));
+        keywords.put(MineFlag.class, Arrays.asList("mine", "mines", "dul", "doly"));
+        keywords.put(ParticlesFlag.class, Arrays.asList("particles", "particle", "particly", "partikly", "castice", "efekt", "efekty"));
+        keywords.put(TpFlag.class, Arrays.asList("tp", "port", "teleport", "spawn"));
         return keywords;
+    }
+
+    private Class<? extends Flag> findFlagClass(String input) {
+        input = input.toLowerCase();
+        for (Map.Entry<Class<? extends Flag>, List<String>> entry : getFlagKeywords().entrySet()) {
+            Class<? extends Flag> clazz = entry.getKey();
+            List<String> keywords = entry.getValue();
+            if (keywords.contains(input)) {
+                return clazz;
+            }
+        }
+        return null;
     }
 
     private <T extends Action> T constructAction(Class<T> actionType, String params) throws ZoneException {
@@ -988,10 +1198,5 @@ public class ZoneCommands extends BaseCommand {
         }
         throw new ZoneException("§cNeplatný typ akce.");
     }
-}
-    // ZONE TODO - přidat všude auto-complete
-    // ZONE TODO - otestovat auto-complete
-    // ZONE TODO - lepší nápověda k příkazům
-    // ZONE TODO - implementovat perzistenci
-    // ZONE TODO - otestovat perzistenci
 
+}

@@ -1,4 +1,4 @@
-package cz.iwitrag.greencore.events;
+package cz.iwitrag.greencore.gameplay;
 
 import org.bukkit.World;
 import org.bukkit.event.EventHandler;

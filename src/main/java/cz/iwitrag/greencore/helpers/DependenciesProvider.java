@@ -9,7 +9,9 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.bukkit.WorldEditPlugin;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
+import com.sk89q.worldedit.regions.selector.CuboidRegionSelector;
 import cz.iwitrag.greencore.Main;
+import cz.iwitrag.greencore.gameplay.itemdb.ItemDB;
 import fr.xephi.authme.api.v3.AuthMeApi;
 import net.luckperms.api.LuckPerms;
 import org.bukkit.Bukkit;
@@ -17,6 +19,8 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.RegisteredServiceProvider;
+
+import java.util.logging.Logger;
 
 public class DependenciesProvider {
 
@@ -28,6 +32,8 @@ public class DependenciesProvider {
     private PaperCommandManager paperCommandManager;
     private ProtocolManager protocolManager;
     private WorldEditPlugin worldEdit;
+    private Logger logger;
+    private ItemDB itemDB;
 
     private DependenciesProvider() {
         instance = this;
@@ -97,6 +103,22 @@ public class DependenciesProvider {
         if (region.getWorld() != null)
             w = BukkitAdapter.adapt(region.getWorld());
         return new Location(w, point.getX()+0.5, point.getY()+0.5, point.getZ()+0.5);
+    }
+
+    /** Sets WorldEdit selection for world player is located */
+    public void setWorldEditSelection(String playerName, Location p1, Location p2) {
+        Player player = Bukkit.getPlayer(playerName);
+        if (player == null)
+            return;
+        com.sk89q.worldedit.world.World world = BukkitAdapter.adapt(player.getWorld());
+        CuboidRegionSelector selector = new CuboidRegionSelector(world, BlockVector3.at(p1.getX(), p1.getY(), p1.getZ()), BlockVector3.at(p2.getX(), p2.getY(), p2.getZ()));
+        getWorldEdit().getSession(player).setRegionSelector(world, selector);
+    }
+
+    public ItemDB getDefaultItemDB() {
+        if (itemDB == null)
+            itemDB = new ItemDB("itemDB.yml");
+        return itemDB;
     }
 
 }

@@ -16,6 +16,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -78,41 +80,37 @@ public class RtpCommand extends BaseCommand {
 
         TaskChain<?> chain = TaskChainHelper.newChain();
         chain.setTaskData("target", target);
-        chain
-        .asyncFirst(() -> {
-            if (LuckPermsHelper.playerHasPermission(commandSender.getName(), "rtp.admin"))
-                return -1;
-            else if (LuckPermsHelper.playerHasPermission(commandSender.getName(), "rtp.vip"))
-                return 60;
-            else
-                return 180;
-        })
-        .syncLast((cooldown) -> {
-            String targetName = chain.getTaskData("target");
-            long secondsElapsed = Long.MAX_VALUE;
-            if (lastTeleports.containsKey(targetName.toLowerCase())) {
-                secondsElapsed = secondsElapsed(lastTeleports.get(targetName.toLowerCase()), new Date());
-            }
-            if (secondsElapsed < cooldown) {
-                commandSender.sendMessage("§cDo dalšího teleportu zbývá §4" + StringHelper.timeToLongString(cooldown-secondsElapsed));
-                return;
-            }
+        int cooldown;
+        if (LuckPermsHelper.playerHasPermission(commandSender.getName(), "rtp.admin"))
+            cooldown = -1;
+        else if (LuckPermsHelper.playerHasPermission(commandSender.getName(), "rtp.vip"))
+            cooldown = 60;
+        else
+            cooldown = 180;
+        String targetName = chain.getTaskData("target");
+        long secondsElapsed = Long.MAX_VALUE;
+        if (lastTeleports.containsKey(targetName.toLowerCase())) {
+            secondsElapsed = secondsElapsed(lastTeleports.get(targetName.toLowerCase()), new Date());
+        }
+        if (secondsElapsed < cooldown) {
+            commandSender.sendMessage("§cDo dalšího teleportu zbývá §4" + StringHelper.timeToLongString(cooldown-secondsElapsed));
+            return;
+        }
 
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "spreadplayers 0 0 0 8000 false " + targetName);
+        targetPlayer.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 20*15, 9, true, true), true);
+        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "spreadplayers 0 0 0 8000 false " + targetName);
 
-            lastTeleports.put(targetName.toLowerCase(), new Date());
-            targetPlayer.sendMessage("§aTeleportuji tě náhodně do přírody, hodně štěstí :)");
-            if (!commandSender.getName().equalsIgnoreCase(targetName)) {
-                commandSender.sendMessage("§aHráč §2" + targetName + " §ateleportován");
+        lastTeleports.put(targetName.toLowerCase(), new Date());
+        targetPlayer.sendMessage("§aTeleportuji tě náhodně do přírody, hodně štěstí :)");
+        if (!commandSender.getName().equalsIgnoreCase(targetName)) {
+            commandSender.sendMessage("§aHráč §2" + targetName + " §ateleportován");
+        }
+        Bukkit.getScheduler().scheduleSyncDelayedTask(Main.getInstance(), () -> {
+            if (targetPlayer.isOnline()) {
+                DependenciesProvider.getInstance().getEssentials().getUser(targetPlayer.getName()).setHome("rtp", targetPlayer.getLocation());
+                targetPlayer.sendMessage("§7Pokud umřeš, můžeš se dostat na místo posledního náhodného teleportu příkazem §f/home rtp");
             }
-            Bukkit.getScheduler().scheduleSyncDelayedTask(Main.getInstance(), () -> {
-                if (targetPlayer.isOnline()) {
-                    DependenciesProvider.getInstance().getEssentials().getUser(targetPlayer.getName()).setHome("rtp", targetPlayer.getLocation());
-                    targetPlayer.sendMessage("§7Pokud umřeš, můžeš se dostat na místo posledního náhodného teleportu příkazem §f/home rtp");
-                }
-            }, 10);
-        })
-        .execute();
+        }, 10);
     }
 
     private static long secondsElapsed(Date date1, Date date2) {

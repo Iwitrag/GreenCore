@@ -25,13 +25,35 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>8</source>
-                    <target>8</target>
+                    <source>1.8</source>
+                    <target>1.8</target>
                     <compilerArgs>
                         <arg>-parameters</arg> <!-- for ACF command syntax -->
                     </compilerArgs>
                 </configuration>
             </plugin>
+<!--            <plugin>-->
+<!--                <groupId>org.apache.maven.plugins</groupId>-->
+<!--                <artifactId>maven-shade-plugin</artifactId>-->
+<!--                <version>3.2.2</version>-->
+<!--                <configuration>-->
+<!--                    <dependencyReducedPomLocation>${project.build.directory}/dependency-reduced-pom.xml</dependencyReducedPomLocation>-->
+<!--                    <relocations>-->
+<!--                        <relocation>-->
+<!--                            <pattern>co.aikar.commands</pattern>-->
+<!--                            <shadedPattern>cz.iwitrag.greencore.acf</shadedPattern>-->
+<!--                        </relocation>-->
+<!--                    </relocations>-->
+<!--                </configuration>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <phase>package</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>shade</goal>-->
+<!--                        </goals>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
         </plugins>
     </build>
 
@@ -69,11 +91,57 @@
     </repositories>
 
     <dependencies>
+        <!-- https://mvnrepository.com/artifact/org.hibernate/hibernate-core -->
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>5.4.12.Final</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.hibernate/hibernate-hikaricp -->
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-hikaricp</artifactId>
+            <version>5.4.12.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>2.12.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.12.1</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/mysql/mysql-connector-java -->
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.19</version>
+        </dependency>
+        <!-- https://github.com/brettwooldridge/HikariCP -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>3.4.2</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.jetbrains/annotations -->
         <dependency>
             <groupId>org.jetbrains</groupId>
             <artifactId>annotations</artifactId>
-            <version>17.0.0</version>
-            <scope>compile</scope>
+            <version>18.0.0</version>
+        </dependency>
+        <!-- https://github.com/aikar/commands -->
+        <dependency>
+            <groupId>co.aikar</groupId>
+            <artifactId>acf-paper</artifactId>
+            <version>0.5.0-SNAPSHOT</version>
+        </dependency>
+        <!-- https://github.com/aikar/TaskChain -->
+        <dependency>
+            <groupId>co.aikar</groupId>
+            <artifactId>taskchain-bukkit</artifactId>
+            <version>3.7.2</version>
         </dependency>
         <dependency>
             <groupId>com.destroystokyo.paper</groupId>
@@ -87,7 +155,7 @@
             <version>1.15.1-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
-        <!-- Craftbukkit is being pulled from local repository, BuildTools provides it automatically -->
+        <!-- Craftbukkit is being pulled from local repository, BuildTools provides it -->
         <!-- To force BuildTools to compile Craftbukkit, use java -jar Buildtools.jar - -compile CRAFTBUKKIT -->
         <dependency>
             <groupId>org.bukkit</groupId>
@@ -121,6 +189,13 @@
             <groupId>com.vexsoftware</groupId>
             <artifactId>nuvotifier-universal</artifactId>
             <version>2.6.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- https://repo.aikar.co/nexus/content/groups/aikar/com/sk89q/worldedit/worldedit-bukkit/ -->
+        <dependency>
+            <groupId>com.sk89q.worldedit</groupId>
+            <artifactId>worldedit-bukkit</artifactId>
+            <version>7.0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <!-- https://repo.dmulloy2.net/nexus/#browse/search=keyword%3Dprotocollib -->
@@ -157,28 +232,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- https://github.com/aikar/commands -->
-        <dependency>
-            <groupId>co.aikar</groupId>
-            <artifactId>acf-paper</artifactId>
-            <version>0.5.0-SNAPSHOT</version>
-            <scope>compile</scope>
-        </dependency>
-        <!-- https://github.com/aikar/TaskChain -->
-        <dependency>
-            <groupId>co.aikar</groupId>
-            <artifactId>taskchain-bukkit</artifactId>
-            <version>3.7.2</version>
-            <scope>compile</scope>
-        </dependency>
-        <!-- https://repo.aikar.co/nexus/content/groups/aikar/com/sk89q/worldedit/worldedit-bukkit/ -->
-        <dependency>
-            <groupId>com.sk89q.worldedit</groupId>
-            <artifactId>worldedit-bukkit</artifactId>
-            <version>7.0.1-SNAPSHOT</version>
-        </dependency>
-        <!-- TODO - check if ACF will be loaded on server /lib/green folder without using maven shading plugin -->
-        <!-- tutorial to shade: https://github.com/aikar/commands/wiki/Maven-Setup -->
+
     </dependencies>
 
 </project>

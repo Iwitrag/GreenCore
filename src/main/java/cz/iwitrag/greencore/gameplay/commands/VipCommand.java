@@ -72,8 +72,8 @@ public class VipCommand extends BaseCommand {
             commandSender.sendMessage("§a   VIP: " + resultVip);
             commandSender.sendMessage("§a   VIP+: " + resultVipPlus);
             if (checkingMyVip && vipDuration == 0 && vipPlusDuration == 0) {
-                commandSender.sendMessage("§aVIP jde zatím koupit jen přes PayPal, PaySafeCard a převodem. " +
-                        "Výhody a ceny jsou na webu. V případě zájmu napiš na §2platby@greenlandia.cz");
+                commandSender.sendMessage("§aVIP, VIP+ a Sponzor jde získat na §b/warp vip");
+                commandSender.sendMessage("§4Platby kartou a PayPal získávají bonus 50 % !");
             }
             commandSender.sendMessage("§8" + StringHelper.getChatLine());
         })

@@ -31,7 +31,7 @@ public class PDParser {
         for (PDItem item : items) {
             String chance = StringHelper.doubleStringWithoutTrailingZeros(item.getChance()*100);
             builder.append(chance);
-            builder.append("%:");
+            builder.append("%");
             builder.append(item.getValue());
             builder.append(",");
         }

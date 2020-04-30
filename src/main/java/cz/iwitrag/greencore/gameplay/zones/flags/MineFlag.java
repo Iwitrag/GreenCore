@@ -4,18 +4,29 @@ import cz.iwitrag.greencore.gameplay.zones.ZoneException;
 import cz.iwitrag.greencore.helpers.percentdistribution.PDException;
 import cz.iwitrag.greencore.helpers.percentdistribution.PDItem;
 import cz.iwitrag.greencore.helpers.percentdistribution.PDParser;
+import cz.iwitrag.greencore.storage.converters.MineFlagBlocksConverter;
 import org.bukkit.Material;
 
+import javax.persistence.Column;
+import javax.persistence.Convert;
+import javax.persistence.DiscriminatorValue;
+import javax.persistence.Entity;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-public class MineFlag implements Flag {
+@Entity
+@DiscriminatorValue("mine")
+public class MineFlag extends Flag {
 
+    @Column(name = "mine_blocks", length = 1000)
+    @Convert(converter = MineFlagBlocksConverter.class)
     private Set<MineBlock> blocks = new LinkedHashSet<>();
-    private double regenPercentage;
+
+    @Column(name = "mine_regenPercentage")
+    private float regenPercentage;
 
     public MineFlag() {
-        this.regenPercentage = 100.00;
+        this.regenPercentage = 100.00f;
     }
 
     public boolean hasBlocks() {
@@ -26,16 +37,25 @@ public class MineFlag implements Flag {
         return new LinkedHashSet<>(blocks);
     }
 
-    public void setBlocksFromString(String blocksString) throws ZoneException {
+    /**
+     * Converts String into MineBlocks
+     * @param input Input String
+     * @return Converted Set with MineBlocks, if input String is empty, returned Set will be empty as well
+     * @throws ZoneException Error with conversion
+     */
+    public static Set<MineBlock> makeBlocksFromString(String input) throws ZoneException {
+        Set<MineBlock> convertedBlocks = new LinkedHashSet<>();
+        if (input.isEmpty())
+            return convertedBlocks;
+
         PDParser parser = new PDParser();
         try {
-            parser.setupFromString(blocksString);
+            parser.setupFromString(input);
         } catch (PDException e) {
             throw new ZoneException(e.getMessage());
         }
-        Set<PDItem> parsedblocks = parser.getItems();
-        Set<MineBlock> convertedBlocks = new LinkedHashSet<>();
-        for (PDItem pdItem : parsedblocks) {
+        Set<PDItem> parsedBlocks = parser.getItems();
+        for (PDItem pdItem : parsedBlocks) {
             Material material = Material.getMaterial(pdItem.getValue());
             if (material == null) {
                 throw new ZoneException("§cTyp bloku s názvem §4" + pdItem.getValue() + " §cnebyl nalezen.");
@@ -45,30 +65,45 @@ public class MineFlag implements Flag {
             }
             convertedBlocks.add(new MineBlock(material, pdItem.getChance()));
         }
-        this.blocks = convertedBlocks;
+        return convertedBlocks;
     }
 
-    public String getBlocksAsString() {
-        if (blocks.isEmpty())
-            return "---";
+    /**
+     * Converts MineBlocks to String
+     * @param input Input MineBlocks
+     * @return Converted String, if input Set is empty, returned String will be empty as well
+     * @throws Error with conversion
+     */
+    public static String makeStringFromBlocks(Set<MineBlock> input) throws ZoneException {
+        if (input.isEmpty())
+            return "";
         Set<PDItem> PDInput = new LinkedHashSet<>();
-        for (MineBlock block : blocks) {
+        for (MineBlock block : input) {
             PDInput.add(new PDItem(block.getBlockType().toString(), block.getChance()));
         }
         PDParser parser = new PDParser();
         try {
             parser.setupFromItems(PDInput);
         } catch (PDException e) {
-            return "Chyba: " + e.getMessage();
+            throw new ZoneException(e.getMessage());
         }
         return parser.toString();
+    }
+
+    public void setBlocksFromString(String blocksString) throws ZoneException {
+        this.blocks = makeBlocksFromString(blocksString);
+    }
+
+
+    public String getBlocksAsString() throws ZoneException {
+        return makeStringFromBlocks(this.blocks);
     }
 
     public double getRegenPercentage() {
         return regenPercentage;
     }
 
-    public void setRegenPercentage(double regenPercentage) {
+    public void setRegenPercentage(float regenPercentage) {
         if (regenPercentage < 0)
             regenPercentage = 0;
         this.regenPercentage = regenPercentage;
@@ -88,7 +123,19 @@ public class MineFlag implements Flag {
         return blocks.toArray(new MineBlock[0])[blocks.size()-1].blockType; // last item
     }
 
-    public class MineBlock {
+    @Override
+    public Flag copy() {
+        MineFlag flag = new MineFlag();
+        flag.setRegenPercentage(regenPercentage);
+        try {
+            flag.setBlocksFromString(getBlocksAsString());
+        } catch (ZoneException e) {
+            e.printStackTrace();
+        }
+        return flag;
+    }
+
+    public static class MineBlock {
 
         private Material blockType;
         private double chance;

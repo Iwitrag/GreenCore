@@ -2,9 +2,18 @@ package cz.iwitrag.greencore.gameplay.zones.actions;
 
 import org.bukkit.entity.Player;
 
+import javax.persistence.Column;
+import javax.persistence.DiscriminatorValue;
+import javax.persistence.Entity;
+
+@Entity
+@DiscriminatorValue("dmg")
 public class DamageAction extends Action {
 
+    @Column(name = "dmg_damage")
     private int damage;
+
+    public DamageAction() {}
 
     public DamageAction(int damage) {
         this.damage = damage;

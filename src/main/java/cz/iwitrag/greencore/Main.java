@@ -1,5 +1,7 @@
 package cz.iwitrag.greencore;
 
+import cz.iwitrag.greencore.helpers.ConfigurationManager;
+import cz.iwitrag.greencore.storage.PersistenceManager;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -11,16 +13,13 @@ import java.net.URL;
 import java.net.URLClassLoader;
 
 // TOP PRIORITY
-// TODO - zones framework, general zones, command zones
-// TODO - new spawn
 // TODO - setup residence flags & event arenas
 // TODO - premium items, simple special item framework, command to spawn special items, one-use items with identificators
 // TODO - chest protection 2 days if not inside residence, warning when opening chest
 
 // AFTERPARTY
 // TODO - plot world
-// TODO - mines
-// TODO - PvP arena (but be careful, event items must be removed! Maybe add lore of region name onto event item and if player goes outside region - items dissapears)
+// TODO - PvP coloseum (but be careful, event items must be removed! Maybe add lore of region name onto event item and if player goes outside region - items dissapears)
 // TODO - LP parkour
 // TODO - community voting system, vote for sun, day, night, rain, storm
 // TODO - friend system with seen support
@@ -69,16 +68,25 @@ public class Main extends JavaPlugin {
 
     @Override
     public void onEnable() {
-
-        Bukkit.getLogger().info("=== Loading dependencies ===");
+        getLogger().info("=== Loading dependencies ===");
         long timeSpent = System.nanoTime();
         int amountOfLoadedDependencies = loadDependencies(false);
         timeSpent = System.nanoTime() - timeSpent;
-        Bukkit.getLogger().info("=== Finished loading " + amountOfLoadedDependencies + " dependencies in " + timeSpent/1000000.0 + " ms ===");
+        getLogger().info("=== Finished loading " + amountOfLoadedDependencies + " dependencies in " + timeSpent/1000000.0 + " ms ===");
 
         // TODO - auto-upload non-provided dependency files into '/lib/green' folder somehow... maven?
 
         new Init(this);
+    }
+
+    @Override
+    public void onDisable() {
+        PersistenceManager pm = PersistenceManager.getInstance();
+        pm.runHibernateTaskNoRunnable(pm::updateAllData, true);
+        pm.close();
+
+        ConfigurationManager cm = ConfigurationManager.getInstance();
+        cm.saveAllConfigs();
     }
 
     private static int loadDependencies(@SuppressWarnings("SameParameterValue") boolean debug) {
@@ -86,15 +94,15 @@ public class Main extends JavaPlugin {
         File libFolder = new File(new File(Bukkit.getWorldContainer(), "lib"), "green");
         boolean tryToLoadLibs = false;
         if (libFolder.mkdirs()) {
-            if (debug) Bukkit.getLogger().warning("Created new folder '/lib/green' !");
+            if (debug) getInstance().getLogger().warning("Created new folder '/lib/green' !");
             tryToLoadLibs = true;
         }
         else if (libFolder.isDirectory()) {
-            if (debug) Bukkit.getLogger().info("Folder '/lib/green' was found, reading files...");
+            if (debug) getInstance().getLogger().info("Folder '/lib/green' was found, reading files...");
             tryToLoadLibs = true;
         }
         else {
-            if (debug) Bukkit.getLogger().warning("Folder '/lib/green' was not found and could not be created!");
+            if (debug) getInstance().getLogger().warning("Folder '/lib/green' was not found and could not be created!");
         }
         if (tryToLoadLibs) {
             File[] files = libFolder.listFiles();
@@ -102,12 +110,12 @@ public class Main extends JavaPlugin {
                 for (File file : files) {
                     try {
                         final URL url = file.toURI().toURL();
-                        if (debug) Bukkit.getLogger().info("Loading dependency " + url.toString());
+                        if (debug) getInstance().getLogger().info("Loading dependency " + url.toString());
                         URLClassLoader classLoader = (URLClassLoader) ClassLoader.getSystemClassLoader();
                         final Method method = URLClassLoader.class.getDeclaredMethod("addURL", URL.class);
                         method.setAccessible(true);
                         method.invoke(classLoader, url);
-                        if (debug) Bukkit.getLogger().info("> Dependency successfully loaded!");
+                        if (debug) getInstance().getLogger().info("> Dependency successfully loaded!");
                         amountLoaded++;
                     } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | MalformedURLException e) {
                         e.printStackTrace();

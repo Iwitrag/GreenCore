@@ -8,16 +8,13 @@ import org.bukkit.entity.Player;
 import java.util.HashMap;
 import java.util.Map;
 
-//@Entity
 public class GPlayer {
 
-    /*@Id @GeneratedValue*/ private int id;
-    /*@Transient*/ private Player bukkitPlayer;
-    /*@Transient*/ private Map<Skill, SkillStatus> skills = new HashMap<>();
+    private int id;
+    private Player bukkitPlayer;
+    private Map<Skill, SkillStatus> skills = new HashMap<>();
 
     // TODO - persistent player skills in DB
-
-    public GPlayer() {}
 
     public GPlayer(Player bukkitPlayer) {
         this.bukkitPlayer = bukkitPlayer;

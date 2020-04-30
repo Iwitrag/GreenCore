@@ -3,23 +3,37 @@ package cz.iwitrag.greencore.gameplay.zones.flags;
 import cz.iwitrag.greencore.gameplay.zones.Zone;
 import org.bukkit.Location;
 
-public class TpFlag implements Flag {
+import javax.persistence.Column;
+import javax.persistence.DiscriminatorValue;
+import javax.persistence.Entity;
 
-    private Location tpLocation;
+@Entity
+@DiscriminatorValue("tp")
+public class TpFlag extends Flag {
+
+    @Column(name = "tp_location")
+    private Location location;
 
     public TpFlag() {
-        this.tpLocation = null;
+        this.location = null;
     }
 
     public TpFlag(Zone zone) {
-        this.tpLocation = zone.getCenterPoint();
+        this.location = zone.getCenterPoint();
     }
 
-    public Location getTpLocation() {
-        return tpLocation;
+    public Location getLocation() {
+        return location;
     }
 
-    public void setTpLocation(Location tpLocation) {
-        this.tpLocation = tpLocation;
+    public void setLocation(Location location) {
+        this.location = location;
+    }
+
+    @Override
+    public Flag copy() {
+        TpFlag flag = new TpFlag();
+        flag.setLocation(location);
+        return flag;
     }
 }

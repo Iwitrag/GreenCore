@@ -8,15 +8,20 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public abstract class VoteProcesser {
 
     private String remindText;
     private String canVoteAgainText;
 
+    /** Date of player's last vote */
     private Map<String, Date> lastVoteTime = new HashMap<>();
+    /** Date of when was player lastly reminded to vote, when player gets reminded, this value is removed */
     private Map<String, Date> lastRemindTime = new HashMap<>();
+    /** Remaining minutes of grace period (without any reminders) */
     private Map<String, Integer> gracePeriod = new HashMap<>();
+
     private int scheduledBukkitTask = -1;
 
     public VoteProcesser(String remindText, String canVoteAgainText) {
@@ -34,13 +39,16 @@ public abstract class VoteProcesser {
         if (scheduledBukkitTask != -1)
             return;
 
+        // This code runs every minute
         scheduledBukkitTask = Bukkit.getScheduler().scheduleSyncRepeatingTask(Main.getInstance(), () -> {
             final Date now = new Date();
 
+            // Decrease existing grace periods by 1 minute
             for (String playerName : gracePeriod.keySet()) {
                 gracePeriod.put(playerName, gracePeriod.get(playerName)-1);
             }
 
+            // Notify players who already voted that they can vote again and save their remind date to now
             for (Iterator<String> iterator = lastVoteTime.keySet().iterator(); iterator.hasNext(); ) {
                 String playerName = iterator.next();
                 if (canVoteAgain(minutesElapsed(now, lastVoteTime.get(playerName)))) {
@@ -48,21 +56,23 @@ public abstract class VoteProcesser {
                     Player player = Bukkit.getPlayer(playerName);
                     if (player != null && player.isOnline()) {
                         lastRemindTime.put(playerName, now);
-                        player.sendMessage(getCanVoteAgainText());
+                        player.sendMessage(getCanVoteAgainText().replaceAll("(?i)" + Pattern.quote("%player%"), player.getName()));
                     }
                 }
             }
 
+            // If player should be reminded, remove his last remind date
             lastRemindTime.keySet().removeIf(playerName ->
                     shouldBeReminded(minutesElapsed(now, lastRemindTime.get(playerName)))
             );
 
+            // Remind players of voting (if not reminded recently nor in grace period)
             for (Player player : Bukkit.getOnlinePlayers()) {
                 String playerName = player.getName().toLowerCase();
                 if (!lastVoteTime.containsKey(playerName) && !lastRemindTime.containsKey(playerName)) {
                     if (gracePeriod.containsKey(playerName)) {
                         if (gracePeriod.get(playerName) == 0) {
-                            player.sendMessage(getRemindText());
+                            player.sendMessage(getRemindText(player.getName()));
                             lastRemindTime.put(playerName, now);
                             gracePeriod.remove(playerName);
                         }
@@ -72,7 +82,7 @@ public abstract class VoteProcesser {
                     }
                 }
             }
-        }, 1200, 1200);
+        }, 20*60, 20*60);
     }
 
     public final void stopReminding() {
@@ -85,8 +95,8 @@ public abstract class VoteProcesser {
         processVote(playerName);
     }
 
-    public final String getRemindText() {
-        return remindText;
+    public final String getRemindText(String player) {
+        return remindText.replaceAll("(?i)" + Pattern.quote("%player%"), player);
     }
 
     public final String getCanVoteAgainText() {

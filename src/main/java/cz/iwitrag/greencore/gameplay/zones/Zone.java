@@ -2,8 +2,21 @@ package cz.iwitrag.greencore.gameplay.zones;
 
 import cz.iwitrag.greencore.gameplay.zones.actions.Action;
 import cz.iwitrag.greencore.gameplay.zones.flags.Flag;
+import cz.iwitrag.greencore.helpers.LocationHelper;
 import org.bukkit.Location;
+import org.hibernate.annotations.Cascade;
+import org.hibernate.annotations.CascadeType;
 
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.FetchType;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.OneToMany;
+import javax.persistence.OrderColumn;
+import javax.persistence.Transient;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Date;
@@ -14,22 +27,57 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+@Entity
 public class Zone {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", updatable = false, nullable = false)
+    private Long id;
+
+    @Column(nullable = false)
     private String name;
+
+    @Column(nullable = false, columnDefinition = "int default 0")
     private int priority;
+
+    @Column(nullable = false)
     private Location point1; // Lower
+
+    @Column(nullable = false)
     private Location point2; // Upper
+
+    @OneToMany(fetch = FetchType.EAGER, orphanRemoval = true)
+    @Cascade(CascadeType.ALL)
+    @OrderColumn(name = "list_id")
+    @JoinColumn(name = "zone_id")
     private List<Action> actions = new ArrayList<>();
+
+    @OneToMany(fetch = FetchType.EAGER, orphanRemoval = true)
+    @Cascade(CascadeType.ALL)
+    @JoinColumn(name = "zone_id")
     private Set<Flag> flags = new HashSet<>();
+
+    @Transient
     private Map<String, Date> executions = new HashMap<>();
 
+    public Zone() {}
+
     public Zone(String name, Location point1, Location point2) {
+        this.id = null;
         this.priority = 0;
         this.name = name;
         this.point1 = point1;
         this.point2 = point2;
-        sortLocations(this.point1, this.point2);
+        LocationHelper.getInstance().sortLocations(this.point1, this.point2);
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
     }
 
     public String getName() {
@@ -59,7 +107,7 @@ public class Zone {
     public void setPoints(Location point1, Location point2) {
         this.point1 = point1;
         this.point2 = point2;
-        sortLocations(this.point1, this.point2);
+        LocationHelper.getInstance().sortLocations(this.point1, this.point2);
     }
 
     public int getSizeInX() {
@@ -173,7 +221,7 @@ public class Zone {
     }
 
     public Action getAction(int id) {
-        if (id >= actions.size())
+        if (id >= actions.size() || id < 0)
             return null;
         return actions.get(id);
     }
@@ -207,9 +255,13 @@ public class Zone {
             int addedActionTime = action.getTime();
             int iteratedActionTime = actions.get(index).getTime();
             if (addedActionTime < iteratedActionTime) {
-                index--;
-            }
-            else if (addedActionTime > iteratedActionTime) {
+                if (index == 0 || addedActionTime == actions.get(index-1).getTime()) {
+                    actions.add(index, action);
+                    return index;
+                }
+                else
+                    index--;
+            } else if (addedActionTime > iteratedActionTime) {
                 index++;
             } else {
                 actions.add(index, action);
@@ -231,21 +283,5 @@ public class Zone {
         return name;
     }
 
-    private static void sortLocations(Location loc1, Location loc2) {
-        if (loc1.getX() > loc2.getX()) {
-            double temp = loc2.getX();
-            loc2.setX(loc1.getX());
-            loc1.setX(temp);
-        }
-        if (loc1.getY() > loc2.getY()) {
-            double temp = loc2.getY();
-            loc2.setY(loc1.getY());
-            loc1.setY(temp);
-        }
-        if (loc1.getZ() > loc2.getZ()) {
-            double temp = loc2.getZ();
-            loc2.setZ(loc1.getZ());
-            loc1.setZ(temp);
-        }
-    }
+
 }

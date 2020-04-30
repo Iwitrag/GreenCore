@@ -3,13 +3,21 @@ package cz.iwitrag.greencore.gameplay.zones.actions;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
+import javax.persistence.Column;
+import javax.persistence.DiscriminatorValue;
+import javax.persistence.Entity;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
+@Entity
+@DiscriminatorValue("cmd")
 public class CommandAction extends Action {
 
+    @Column(name = "cmd_command")
     private String command;
+
+    public CommandAction() {}
 
     public CommandAction(String command) {
         this.command = command;
@@ -70,7 +78,7 @@ public class CommandAction extends Action {
         validateParameters();
     }
 
-    private void validateParameters() {
+    protected void validateParameters() {
         if (command == null || command.isEmpty())
             command = "/";
         else {

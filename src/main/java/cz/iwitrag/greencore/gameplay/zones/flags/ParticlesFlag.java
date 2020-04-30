@@ -1,21 +1,32 @@
 package cz.iwitrag.greencore.gameplay.zones.flags;
 
+import cz.iwitrag.greencore.helpers.Color;
 import org.bukkit.Particle;
 
-public class ParticlesFlag implements Flag {
+import javax.persistence.Column;
+import javax.persistence.DiscriminatorValue;
+import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 
+@Entity
+@DiscriminatorValue("par")
+public class ParticlesFlag extends Flag {
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "par_particle")
     private Particle particle;
+
+    @Column(name = "par_density")
     private int density;
-    private int red;
-    private int green;
-    private int blue;
+
+    @Column(name = "par_color")
+    private Color color;
 
     public ParticlesFlag() {
         this.particle = null;
-        this.density = 1;
-        this.red = 0;
-        this.green = 0;
-        this.blue = 0;
+        this.density = 5;
+        this.color = new Color(0, 0, 0);
     }
 
     public Particle getParticle() {
@@ -34,27 +45,20 @@ public class ParticlesFlag implements Flag {
         this.density = density;
     }
 
-    public int getRed() {
-        return red;
+    public Color getColor() {
+        return color;
     }
 
-    public void setRed(int red) {
-        this.red = red;
+    public void setColor(Color color) {
+        this.color = color;
     }
 
-    public int getGreen() {
-        return green;
-    }
-
-    public void setGreen(int green) {
-        this.green = green;
-    }
-
-    public int getBlue() {
-        return blue;
-    }
-
-    public void setBlue(int blue) {
-        this.blue = blue;
+    @Override
+    public Flag copy() {
+        ParticlesFlag flag = new ParticlesFlag();
+        flag.setParticle(particle);
+        flag.setDensity(density);
+        flag.setColor(new Color(color));
+        return flag;
     }
 }

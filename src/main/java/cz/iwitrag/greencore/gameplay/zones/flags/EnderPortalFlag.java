@@ -1,7 +1,14 @@
 package cz.iwitrag.greencore.gameplay.zones.flags;
 
-public class EnderPortalFlag implements Flag {
+import javax.persistence.Column;
+import javax.persistence.DiscriminatorValue;
+import javax.persistence.Entity;
 
+@Entity
+@DiscriminatorValue("end")
+public class EnderPortalFlag extends Flag {
+
+    @Column(name = "end_enderPortalEnabled")
     private boolean enderPortalEnabled;
 
     public EnderPortalFlag() {
@@ -14,5 +21,12 @@ public class EnderPortalFlag implements Flag {
 
     public void setEnderPortalEnabled(boolean enderPortalEnabled) {
         this.enderPortalEnabled = enderPortalEnabled;
+    }
+
+    @Override
+    public Flag copy() {
+        EnderPortalFlag flag = new EnderPortalFlag();
+        flag.setEnderPortalEnabled(enderPortalEnabled);
+        return flag;
     }
 }
