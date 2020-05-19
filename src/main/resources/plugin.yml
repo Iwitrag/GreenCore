@@ -2,7 +2,7 @@ main: cz.iwitrag.greencore.Main
 name: GreenCore
 version: '1.02'
 website: https://www.greenlandia.cz
-prefix: CORE
+prefix: GreenCore
 description: Core plugin of Greenlandia.cz server
 api-version: '1.15'
 author: Iwitrag
@@ -14,27 +14,6 @@ softdepend:
   - ProtocolLib
   - WorldEdit
   - Votifier
+  - Holograms
 loadbefore:
-  - Residence # Because residence wants to load world 'pvp'
-  - CommandSigns # Because otherwise signs in world 'pvp' are not loaded
   - SkinsRestorer # To avoid ACF dependency problems
-  - Holograms # To correctly load holograms in world 'pvp
-permissions:
-  odhazovatko:
-    description: Umožňuje použít odhazovátko
-    default: op
-  odhazovatko.bypass:
-    description: Zabraňuje použití odhazovátka na daného hráče
-    default: op
-  drophead.bypass:
-    description: Hráči nevypadne hlava při smrti
-    default: op
-  afkpreventer.bypass:
-    description: Hráč nebude vyhozen za neaktivitu
-    default: op
-  vip.seeothers:
-    description: Umožňuje zobrazit zbývající VIP jiných hráčů
-    default: op
-  zone.admin:
-    description: Umožňuje spravovat zóny
-    default: op

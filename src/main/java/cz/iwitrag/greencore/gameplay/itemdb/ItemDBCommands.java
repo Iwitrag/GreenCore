@@ -5,18 +5,17 @@ import co.aikar.commands.CommandHelp;
 import co.aikar.commands.annotation.CommandAlias;
 import co.aikar.commands.annotation.CommandPermission;
 import co.aikar.commands.annotation.Description;
+import co.aikar.commands.annotation.Flags;
 import co.aikar.commands.annotation.HelpCommand;
 import co.aikar.commands.annotation.Optional;
 import co.aikar.commands.annotation.Subcommand;
+import cz.iwitrag.greencore.gameplay.chat.ChatUtils;
 import cz.iwitrag.greencore.helpers.DependenciesProvider;
 import cz.iwitrag.greencore.helpers.LuckPermsHelper;
 import cz.iwitrag.greencore.helpers.StringHelper;
-import cz.iwitrag.greencore.helpers.Utils;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.ComponentBuilder;
-import net.md_5.bungee.api.chat.HoverEvent;
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
@@ -74,7 +73,7 @@ public class ItemDBCommands extends BaseCommand {
                 Map.Entry<String, ItemStack> entry = iterator.next();
                 String itemName = entry.getKey().split("\\.")[1];
                 ItemStack itemStack = entry.getValue();
-                builder.append(itemName).color(ChatColor.WHITE).event(new HoverEvent(HoverEvent.Action.SHOW_ITEM, Utils.itemStackToBaseComponents(itemStack)));
+                builder.append(ChatUtils.getItemableText("§f" + itemName, itemStack));
                 if (iterator.hasNext())
                     builder.append(", ").color(ChatColor.GRAY);
             }
@@ -85,13 +84,8 @@ public class ItemDBCommands extends BaseCommand {
 
     @Subcommand("save|store|add|ulozit|uloz|pridat")
     @Description("Uloží item v ruce do databáze")
-    public void saveCommand(Player sender, @Optional String item) {
-        ItemStack hand = sender.getInventory().getItemInMainHand();
+    public void saveCommand(Player sender, @Flags("main_hand") ItemStack hand, @Optional String item) {
         boolean isAdmin = LuckPermsHelper.playerHasPermission(sender.getName(), "itemdb.admin");
-        if (hand.getType() == Material.AIR) {
-            sender.sendMessage("§cMusíš mít item v ruce");
-            return;
-        }
         if (item != null) {
             if (!isAdmin && (item.contains("#") || item.contains("."))) {
                 sender.sendMessage("§cNázev pro uložení nemůže obsahovat znak # ani tečku");
@@ -249,7 +243,7 @@ public class ItemDBCommands extends BaseCommand {
                 else
                     itemName = entry.getKey().split("\\.")[1];
                 ItemStack itemStack = entry.getValue();
-                builder.append(itemName).color(ChatColor.WHITE).event(new HoverEvent(HoverEvent.Action.SHOW_ITEM, Utils.itemStackToBaseComponents(itemStack)));
+                builder.append(ChatUtils.getItemableText("§f" + itemName, itemStack));
                 if (iterator.hasNext())
                     builder.append(", ").color(ChatColor.GRAY);
             }

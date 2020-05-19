@@ -1,6 +1,7 @@
 package cz.iwitrag.greencore.votifier.processers;
 
 import cz.iwitrag.greencore.Main;
+import cz.iwitrag.greencore.helpers.Utils;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -8,7 +9,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 public abstract class VoteProcesser {
 
@@ -56,7 +56,7 @@ public abstract class VoteProcesser {
                     Player player = Bukkit.getPlayer(playerName);
                     if (player != null && player.isOnline()) {
                         lastRemindTime.put(playerName, now);
-                        player.sendMessage(getCanVoteAgainText().replaceAll("(?i)" + Pattern.quote("%player%"), player.getName()));
+                        player.sendMessage(getCanVoteAgainText(player.getName()));
                     }
                 }
             }
@@ -96,14 +96,14 @@ public abstract class VoteProcesser {
     }
 
     public final String getRemindText(String player) {
-        return remindText.replaceAll("(?i)" + Pattern.quote("%player%"), player);
+        return Utils.replacePlaceholders(new String[]{"player"}, new String[]{"%"}, remindText, player);
     }
 
-    public final String getCanVoteAgainText() {
-        return canVoteAgainText;
+    public final String getCanVoteAgainText(String player) {
+        return Utils.replacePlaceholders(new String[]{"player"}, new String[]{"%"}, canVoteAgainText, player);
     }
 
-    private final long minutesElapsed(Date date1, Date date2) {
+    private long minutesElapsed(Date date1, Date date2) {
         return Math.abs(date1.getTime()-date2.getTime())/1000/60;
     }
 

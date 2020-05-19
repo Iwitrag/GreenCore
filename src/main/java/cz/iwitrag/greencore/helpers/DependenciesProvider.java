@@ -4,6 +4,8 @@ import co.aikar.commands.PaperCommandManager;
 import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.ProtocolManager;
 import com.earth2me.essentials.Essentials;
+import com.sainttx.holograms.api.HologramManager;
+import com.sainttx.holograms.api.HologramPlugin;
 import com.sk89q.worldedit.IncompleteRegionException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.bukkit.WorldEditPlugin;
@@ -19,6 +21,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.RegisteredServiceProvider;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.logging.Logger;
 
@@ -29,6 +32,7 @@ public class DependenciesProvider {
     private LuckPerms luckPerms;
     private Essentials essentials;
     private AuthMeApi authme;
+    private HologramManager holograms;
     private PaperCommandManager paperCommandManager;
     private ProtocolManager protocolManager;
     private WorldEditPlugin worldEdit;
@@ -65,6 +69,13 @@ public class DependenciesProvider {
             authme = AuthMeApi.getInstance();
         }
         return authme;
+    }
+
+    public HologramManager getHolograms() {
+        if (holograms == null) {
+            holograms = JavaPlugin.getPlugin(HologramPlugin.class).getHologramManager();
+        }
+        return holograms;
     }
 
     public PaperCommandManager getPaperCommandManager() {

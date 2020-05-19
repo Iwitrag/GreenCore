@@ -140,7 +140,7 @@ public class ZoneFlagsExecutor implements Listener {
                 // Save message to inform penalized player after join
                 List<String> itemNames = new ArrayList<>();
                 for (ItemStack item : removed) {
-                    if (item.getItemMeta().hasDisplayName())
+                    if (item.hasItemMeta() && item.getItemMeta().hasDisplayName())
                         itemNames.add(item.getAmount() + "x " + item.getItemMeta().getDisplayName());
                     else
                         itemNames.add(item.getAmount() + "x " + item.getI18NDisplayName());

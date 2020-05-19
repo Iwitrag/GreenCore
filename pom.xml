@@ -13,6 +13,11 @@
     </properties>
 
     <!--
+    Installation of custom Maven library (mvn command)
+    install:install-file -DgroupId=com.bla.neco -DartifactId=plugin-cosi -Dversion=verze -Dfile=soubor.jar -Dpackaging=jar
+    -->
+
+    <!--
     Dependencies with scope other than Provided must be put into /lib folder on remote server.
     Maven goal to get those dependencies:
     dependency:copy-dependencies -DexcludeScope=provided
@@ -163,6 +168,12 @@
             <version>1.15.1-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
+        <!-- https://github.com/IPVP-MC/canvas - local repository -->
+        <dependency>
+            <groupId>org.ipvp</groupId>
+            <artifactId>canvas</artifactId>
+            <version>1.5.0-SNAPSHOT</version>
+        </dependency>
         <!-- https://github.com/lucko/LuckPerms/wiki/Developer-API -->
         <dependency>
             <groupId>net.luckperms</groupId>
@@ -231,6 +242,13 @@
                     <artifactId>BukkitExecutors</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <!-- Manually added -->
+        <dependency>
+            <groupId>com.sainttx.holograms</groupId>
+            <artifactId>holograms-parent</artifactId>
+            <version>2.11</version>
+            <scope>provided</scope>
         </dependency>
 
     </dependencies>

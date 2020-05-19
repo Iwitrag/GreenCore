@@ -70,27 +70,12 @@ public class Color {
         return red;
     }
 
-    public void setRed(int red) {
-        this.red = red;
-        normalize();
-    }
-
     public int getGreen() {
         return green;
     }
 
-    public void setGreen(int green) {
-        this.green = green;
-        normalize();
-    }
-
     public int getBlue() {
         return blue;
-    }
-
-    public void setBlue(int blue) {
-        this.blue = blue;
-        normalize();
     }
 
     public String getHexadecimal() {
@@ -142,6 +127,12 @@ public class Color {
         if (split.length != 2)
             throw new IllegalArgumentException("Barva musí být ve tvaru R,G,B (NÁZEV)");
         return new Color(split[0], ",");
+    }
+
+    public static Map<String, Color> getNamedColors() {
+        Map<String, Color> result = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        result.putAll(namedColors);
+        return result;
     }
 
     private static Map<String, Color> namedColors = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);

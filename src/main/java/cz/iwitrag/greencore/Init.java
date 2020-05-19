@@ -1,22 +1,24 @@
 package cz.iwitrag.greencore;
 
-import co.aikar.commands.BaseCommand;
 import co.aikar.commands.PaperCommandManager;
 import cz.iwitrag.greencore.auth.JoinTwice;
 import cz.iwitrag.greencore.gameplay.*;
 import cz.iwitrag.greencore.gameplay.commands.RtpCommand;
 import cz.iwitrag.greencore.gameplay.commands.VipCommand;
+import cz.iwitrag.greencore.gameplay.commands.artificial.ArtificialCommandsListener;
+import cz.iwitrag.greencore.gameplay.commands.contexts.*;
 import cz.iwitrag.greencore.gameplay.itemdb.ItemDBCommands;
 import cz.iwitrag.greencore.gameplay.lottery.LotteryCommand;
 import cz.iwitrag.greencore.gameplay.oregen.MiningOreGeneration;
 import cz.iwitrag.greencore.gameplay.playerskills.SkillsListener;
+import cz.iwitrag.greencore.gameplay.treasurechests.TreasureChestCommands;
+import cz.iwitrag.greencore.gameplay.treasurechests.TreasureChestListener;
 import cz.iwitrag.greencore.gameplay.zones.ZoneCommands;
 import cz.iwitrag.greencore.gameplay.zones.ZoneExecutor;
 import cz.iwitrag.greencore.gameplay.zones.ZoneFlagsExecutor;
 import cz.iwitrag.greencore.helpers.ConfigurationManager;
 import cz.iwitrag.greencore.helpers.DependenciesProvider;
 import cz.iwitrag.greencore.helpers.LoggerManager;
-import cz.iwitrag.greencore.helpers.WorldManager;
 import cz.iwitrag.greencore.playerbase.GPlayerListener;
 import cz.iwitrag.greencore.playerbase.GPlayersManager;
 import cz.iwitrag.greencore.storage.PersistenceManager;
@@ -26,16 +28,14 @@ import cz.iwitrag.greencore.votifier.VotifierListener;
 import cz.iwitrag.greencore.votifier.processers.CzechCraftVoteProcesser;
 import cz.iwitrag.greencore.votifier.processers.VoteProcesser;
 import org.bukkit.Bukkit;
-import org.bukkit.GameRule;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.hibernate.HibernateException;
+import org.ipvp.canvas.MenuFunctionListener;
 
-import java.util.HashSet;
 import java.util.Locale;
-import java.util.Set;
 
 // Init is separated from Main because of errors which were shown BEFORE injecting libs into classpath
 
@@ -51,7 +51,6 @@ public class Init {
         registerCommands(DependenciesProvider.getInstance().getPaperCommandManager());
         registerListeners(Bukkit.getPluginManager());
         createInstances();
-        prepareWorlds();
         listenToCzechCraftVotes();
 
         // DB
@@ -81,23 +80,26 @@ public class Init {
         // Czech lang in ACF temporarily disabled until Aikar builds changes
         //paperCommandManager.getLocales().setDefaultLocale(new Locale("cs", "CZ"));
 
-        // Instances are created before registering them because they often have init things in constructors, which must be done before registering
-        Set<BaseCommand> commands = new HashSet<>();
-        commands.add(new ItemDBCommands());
-        commands.add(new LotteryCommand());
-        commands.add(new RtpCommand());
-        commands.add(new VipCommand());
-        commands.add(new VoteCommand());
-        commands.add(new ZoneCommands());
+        new ColorContext().registerCommandContext();
+        new CommonContext().registerCommandContext();
+        new ParticleContext().registerCommandContext();
+        new TreasureChestContext().registerCommandContext();
+        new ZoneContext().registerCommandContext();
 
-        for (BaseCommand cmd : commands) {
-            paperCommandManager.registerCommand(cmd);
-        }
+        paperCommandManager.registerCommand(new ItemDBCommands());
+        paperCommandManager.registerCommand(new LotteryCommand());
+        paperCommandManager.registerCommand(new RtpCommand());
+        paperCommandManager.registerCommand(new TreasureChestCommands());
+        paperCommandManager.registerCommand(new VipCommand());
+        paperCommandManager.registerCommand(new VoteCommand());
+        paperCommandManager.registerCommand(new ZoneCommands());
+
     }
 
     private void registerListeners(PluginManager pluginManager) {
         pluginManager.registerEvents(new AfkPreventer(), plugin);
         pluginManager.registerEvents(new AntiAfkFishing(), plugin);
+        pluginManager.registerEvents(new ArtificialCommandsListener(), plugin);
         pluginManager.registerEvents(new DisableJoinQuitMessages(), plugin);
         pluginManager.registerEvents(new DisablePhantoms(), plugin);
         pluginManager.registerEvents(new DisableVillagerEmeraldSelling(), plugin);
@@ -120,25 +122,15 @@ public class Init {
         pluginManager.registerEvents(new SnowManSnowGenerator(), plugin);
         pluginManager.registerEvents(new SurvivalDeathManager(), plugin);
         pluginManager.registerEvents(new ToolDurabilityModifier(), plugin);
+        pluginManager.registerEvents(new TreasureChestListener(), plugin);
         pluginManager.registerEvents(new VotifierListener(), plugin);
         pluginManager.registerEvents(ZoneFlagsExecutor.getInstance(), plugin);
+        pluginManager.registerEvents(new MenuFunctionListener(), plugin);
     }
 
     private void createInstances() {
         new TntDupeFixer();
         ZoneExecutor.getInstance();
-    }
-
-    private void prepareWorlds() {
-        new WorldManager("world", 8000);
-        new WorldManager("world_nether", 1000);
-        new WorldManager("world_the_end", 8000);
-        WorldManager pvpWorld = new WorldManager("pvp", 1000);
-        pvpWorld.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
-        pvpWorld.setGameRule(GameRule.DO_MOB_SPAWNING, false);
-        pvpWorld.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
-        pvpWorld.setGameRule(GameRule.RANDOM_TICK_SPEED, 0);
-        pvpWorld.setTime(6000); // 6 hours (zero point) + 6 hours
     }
 
     private void listenToCzechCraftVotes() {

@@ -4,7 +4,7 @@ import cz.iwitrag.greencore.helpers.LuckPermsHelper;
 import cz.iwitrag.greencore.helpers.PlayerHeadManager;
 import cz.iwitrag.greencore.helpers.StringHelper;
 import cz.iwitrag.greencore.helpers.TaskChainHelper;
-import cz.iwitrag.greencore.helpers.WorldManager;
+import cz.iwitrag.greencore.helpers.Utils;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -19,7 +19,7 @@ public class SurvivalDeathManager implements Listener {
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
         World playerWorld = player.getWorld();
-        if (WorldManager.isSurvivalWorld(playerWorld)) {
+        if (Utils.isSurvivalWorld(playerWorld)) {
             Location deathLoc = player.getLocation();
             player.sendMessage("§cUmřel/a si :( §2Souřadnice §7[ " + StringHelper.locationToString(deathLoc, true, "§2", "§a") + " §7]§2.");
             TaskChainHelper.newChain()
@@ -27,9 +27,7 @@ public class SurvivalDeathManager implements Listener {
             .abortIf(true)
             .sync(() -> {
                 ItemStack playerHead = PlayerHeadManager.getPlayerHead(player);
-                if (playerHead != null) {
-                    playerWorld.dropItem(deathLoc, playerHead);
-                }
+                playerWorld.dropItem(deathLoc, playerHead);
             })
             .execute();
         }

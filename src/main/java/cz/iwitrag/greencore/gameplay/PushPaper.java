@@ -18,7 +18,7 @@ public class PushPaper implements Listener {
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getItem() != null && event.getItem().getType().equals(Material.PAPER) && event.getAction().equals(Action.RIGHT_CLICK_AIR)) {
-            if (event.getItem().getItemMeta() != null && StringHelper.anyStringContains(event.getItem().getItemMeta().getLore(), "odhazovatko", true)) {
+            if (event.getItem().hasItemMeta() && StringHelper.anyStringContains(event.getItem().getItemMeta().getLore(), "odhazovatko", true)) {
                 TaskChainHelper.newChain()
                 .asyncFirst(() -> LuckPermsHelper.playerHasPermission(event.getPlayer().getName(), "odhazovatko"))
                 .abortIf(false)

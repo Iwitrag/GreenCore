@@ -1,12 +1,11 @@
 package cz.iwitrag.greencore.helpers;
 
 import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.minecraft.server.v1_15_R1.NBTTagCompound;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.Particle;
+import org.apache.commons.lang.StringUtils;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.InvalidConfigurationException;
@@ -17,11 +16,8 @@ import org.bukkit.inventory.ItemStack;
 
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class Utils {
@@ -54,6 +50,88 @@ public class Utils {
             builder.append(" \n");
         }
         player.sendMessage(builder.toString());
+    }
+
+    /**
+     * Replaces all placeholders in input
+     * @param words Words to replace, case insensitive
+     * @param margins What margins to use, must be 1 char or 2 chars long strings (left and right margin)
+     * @param input String to look for words
+     * @param replacement What to replace it for
+     * @return Input with replacements
+     */
+    public static String replacePlaceholders(String[] words, String[] margins, String input, String replacement) {
+        List<String> patterns = preparePatterns(words, margins);
+
+        for (String pattern : patterns) {
+            // (?i) makes it case insensitive
+            input = input.replaceAll("(?i)" + pattern, replacement);
+        }
+        return input;
+    }
+
+    /** Replaces all placeholders in input, uses default margins "{}", "%%", "[]"
+     * @param words Words to replace, case insensitive
+     * @param input String to look for words
+     * @param replacement What to replace it for
+     * @return Input with replacements
+     */
+    public static String replacePlaceholders(String[] words, String input, String replacement) {
+        return replacePlaceholders(words, new String[]{"{}", "%%", "[]"}, input, replacement);
+    }
+
+    public static BaseComponent[] replacePlaceholders(String[] words, String[] margins, String input, BaseComponent[] replacement) {
+        List<String> patterns = preparePatterns(words, margins);
+        StringBuilder pattern = new StringBuilder("(?i)(");
+        for (int i = 0; i < patterns.size(); i++) {
+            pattern.append(patterns.get(i));
+            if (i < patterns.size()-1)
+                pattern.append("|");
+        }
+        pattern.append(")");
+        String[] split = input.split(pattern.toString());
+
+        ComponentBuilder builder = new ComponentBuilder("");
+        if (split.length == 1) {
+            if (Pattern.matches(pattern.toString(), split[0]))
+                builder.append(replacement).create();
+            else
+                builder.appendLegacy(input).create();
+        } else {
+            for (int i = 0; i < split.length; i++) {
+                builder.appendLegacy(split[i]);
+                if (i < split.length - 1)
+                    builder.append(replacement);
+            }
+        }
+        return builder.create();
+    }
+
+    public static BaseComponent[] replacePlaceholders(String[] words, String input, BaseComponent[] replacement) {
+        return replacePlaceholders(words, new String[]{"{}", "%%", "[]"}, input, replacement);
+    }
+
+    private static List<String> preparePatterns(String[] words, String[] margins) {
+        List<String> patterns = new ArrayList<>();
+        for (String word : words) {
+            for (String margin : margins) {
+                if (margin.isEmpty())
+                    continue;
+                char left = margin.charAt(0);
+                char right = margin.length() == 1 ? left : margin.charAt(1);
+                patterns.add(Pattern.quote(left + word + right));
+            }
+        }
+        return patterns;
+    }
+
+    public static String chatColorToAlternativeColorCodes(char altColorChar, String textToTranslate) {
+        for (ChatColor chatColor : ChatColor.values()) {
+            textToTranslate = textToTranslate.replaceAll(
+                    Pattern.quote(chatColor.toString()),
+                    String.valueOf(altColorChar) + chatColor.getChar());
+        }
+        return textToTranslate;
     }
 
     /** Sends empty lines to player */
@@ -96,6 +174,13 @@ public class Utils {
         return null;
     }
 
+    public static double randomDoubleBetween(double lowerInclusive, double upperExclusive) {
+        return Math.random() * (upperExclusive - lowerInclusive) + lowerInclusive;
+    }
+    public static int randomIntBetween(int lowerInclusive, int upperExclusive) {
+        return (int) Math.floor(randomDoubleBetween(lowerInclusive, upperExclusive));
+    }
+
     public static Set<Block> getBlockDirectNeighbours(Block block) {
         Set<Block> set = new HashSet<>();
         if (block != null) {
@@ -121,6 +206,22 @@ public class Utils {
                 .filter(entry -> Objects.equals(entry.getValue(), value))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
+    }
+
+    public static String locationToString(Location location, boolean yawAndPitch, boolean worldName) {
+        List<String> parts = new ArrayList<>();
+        parts.add("X: " + twoDecimal(location.getX()));
+        parts.add("Y: " + twoDecimal(location.getY()));
+        parts.add("Z: " + twoDecimal(location.getZ()));
+        if (yawAndPitch) {
+            parts.add("Yaw: " + twoDecimal(location.getYaw()));
+            parts.add("Pitch: " + twoDecimal(location.getPitch()));
+        }
+        return StringUtils.join(parts, ", ") + (worldName ? (" (" + location.getWorld().getName() + ")") : "");
+    }
+
+    public static boolean isSurvivalWorld(World world) {
+        return (Arrays.asList("world", "world_nether", "world_the_end").contains(world.getName().toLowerCase()));
     }
 
     public static ItemStack stringToItemStack(String input) {

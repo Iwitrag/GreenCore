@@ -187,7 +187,7 @@ public class StringHelper {
         else if (years > 1)
             builder.append(years).append(" roky, ");
         else if (years == 1)
-            builder.append(years).append(" roky, ");
+            builder.append(years).append(" rok, ");
 
         if (months >= 5)
             builder.append(months).append(" měsíců, ");

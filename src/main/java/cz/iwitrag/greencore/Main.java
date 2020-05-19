@@ -12,30 +12,33 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 
+
 // TOP PRIORITY
-// TODO - setup residence flags & event arenas
-// TODO - premium items, simple special item framework, command to spawn special items, one-use items with identificators
-// TODO - chest protection 2 days if not inside residence, warning when opening chest
+// TODO - web remake, PayPal
+// TODO - plot world
+// TODO - Parkour system, checkpoints
+// TODO - storage system for leftover premium items
+// TODO - voting (keys + crates, cumulative rewards)
+// TODO - menu framework, server menu
+// TODO - premium items, simple special item framework, command to spawn special items, one-use items with identificators in NBT
 
 // AFTERPARTY
-// TODO - plot world
-// TODO - PvP coloseum (but be careful, event items must be removed! Maybe add lore of region name onto event item and if player goes outside region - items dissapears)
-// TODO - LP parkour
-// TODO - community voting system, vote for sun, day, night, rain, storm
+// TODO - PvP coloseum (but be careful, event items must be removed! Maybe add NBT of zone name onto event item and if player goes outside zone - items dissapears)
 // TODO - friend system with seen support
-// TODO - lottery
+// TODO - chest protection 2 days if not inside residence, warning when opening chest
+// TODO - spawn - residence tutorial
 // TODO - skill system, decreasing durability usage
 // TODO - quests with integrated daily jobs
 // TODO - tree capitator, integrate with lumberjack skill, it will give exp only when sapling is placed afterwards
-// TODO - voting (keys + crates, cumulative rewards, vote party)
+// TODO - setup residence flags & event arenas
 
 // LOW PRIORITY
+// TODO - vote party
+// TODO - community voting system, vote for sun, day, night, rain, storm
 // TODO - command to reload skin
-// TODO - spawn - residence tutorial
 // TODO - greenlandia website tutorials, cookies info, Spring
 // TODO - better shop with items
 // TODO - custom /PL command (but it must show red or green plugins based on if they work)
-// TODO - menu framework, server menu
 // TODO - after dragon resurrection place dragon egg
 // TODO - custom warp system
 // TODO - spawn - advertisement signs for warps

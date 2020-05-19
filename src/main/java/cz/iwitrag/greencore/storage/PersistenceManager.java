@@ -23,6 +23,7 @@ import cz.iwitrag.greencore.gameplay.zones.flags.TpFlag;
 import cz.iwitrag.greencore.storage.converters.ColorConverter;
 import cz.iwitrag.greencore.storage.converters.LocationConverter;
 import cz.iwitrag.greencore.storage.converters.MineFlagBlocksConverter;
+import cz.iwitrag.greencore.storage.converters.PercentConverter;
 import cz.iwitrag.greencore.storage.converters.PotionEffectConverter;
 import cz.iwitrag.greencore.storage.converters.WorldConverter;
 import org.bukkit.inventory.ItemStack;
@@ -158,6 +159,7 @@ public class PersistenceManager {
             configuration.addAnnotatedClass(ItemStack.class);
             configuration.addAnnotatedClass(LocationConverter.class);
             configuration.addAnnotatedClass(MineFlagBlocksConverter.class);
+            configuration.addAnnotatedClass(PercentConverter.class);
             configuration.addAnnotatedClass(PotionEffectConverter.class);
             configuration.addAnnotatedClass(WorldConverter.class);
 
