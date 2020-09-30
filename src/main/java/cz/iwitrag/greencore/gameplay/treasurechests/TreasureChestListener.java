@@ -81,7 +81,7 @@ public class TreasureChestListener implements Listener {
                 return true;
             }
             tChest = new TreasureChest(location, operation.getChance());
-            manager.addTreasureChest(tChest);
+            manager.addTreasureChest(tChest, true);
             manager.setSelectedChest(playerName, tChest);
             player.sendMessage("§aVytvořena a vybrána nová treasure chestka");
             if (tChest.hasAnyRewards())
@@ -93,7 +93,7 @@ public class TreasureChestListener implements Listener {
                 return true;
             }
             tChest = new TreasureChest(location, operation.getTChest());
-            manager.addTreasureChest(tChest);
+            manager.addTreasureChest(tChest, true);
             player.sendMessage("§aTreasure chestka zkopírována a vybrána");
             manager.setSelectedChest(playerName, tChest);
             manager.unsetPlayerOperation(playerName);

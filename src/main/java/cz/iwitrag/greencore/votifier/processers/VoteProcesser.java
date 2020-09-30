@@ -1,7 +1,7 @@
 package cz.iwitrag.greencore.votifier.processers;
 
 import cz.iwitrag.greencore.Main;
-import cz.iwitrag.greencore.helpers.Utils;
+import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -12,9 +12,6 @@ import java.util.Map;
 
 public abstract class VoteProcesser {
 
-    private String remindText;
-    private String canVoteAgainText;
-
     /** Date of player's last vote */
     private Map<String, Date> lastVoteTime = new HashMap<>();
     /** Date of when was player lastly reminded to vote, when player gets reminded, this value is removed */
@@ -24,16 +21,17 @@ public abstract class VoteProcesser {
 
     private int scheduledBukkitTask = -1;
 
-    public VoteProcesser(String remindText, String canVoteAgainText) {
-        this.remindText = remindText;
-        this.canVoteAgainText = canVoteAgainText;
-    }
+    public VoteProcesser() { }
 
     abstract void processVote(String playerName);
 
     abstract boolean canVoteAgain(long minutesFromLastVote);
 
     abstract boolean shouldBeReminded(long minutesFromLastRemind);
+
+    public abstract BaseComponent[] getRemindText(String playerName);
+
+    public abstract BaseComponent[] getCanVoteAgainText(String playerName);
 
     public final void startReminding() {
         if (scheduledBukkitTask != -1)
@@ -56,7 +54,7 @@ public abstract class VoteProcesser {
                     Player player = Bukkit.getPlayer(playerName);
                     if (player != null && player.isOnline()) {
                         lastRemindTime.put(playerName, now);
-                        player.sendMessage(getCanVoteAgainText(player.getName()));
+                        player.sendMessage(getCanVoteAgainText(playerName));
                     }
                 }
             }
@@ -72,7 +70,7 @@ public abstract class VoteProcesser {
                 if (!lastVoteTime.containsKey(playerName) && !lastRemindTime.containsKey(playerName)) {
                     if (gracePeriod.containsKey(playerName)) {
                         if (gracePeriod.get(playerName) == 0) {
-                            player.sendMessage(getRemindText(player.getName()));
+                            player.sendMessage(getRemindText(playerName));
                             lastRemindTime.put(playerName, now);
                             gracePeriod.remove(playerName);
                         }
@@ -93,14 +91,6 @@ public abstract class VoteProcesser {
     public final void playerVoted(String playerName) {
         lastVoteTime.put(playerName.toLowerCase(), new Date());
         processVote(playerName);
-    }
-
-    public final String getRemindText(String player) {
-        return Utils.replacePlaceholders(new String[]{"player"}, new String[]{"%"}, remindText, player);
-    }
-
-    public final String getCanVoteAgainText(String player) {
-        return Utils.replacePlaceholders(new String[]{"player"}, new String[]{"%"}, canVoteAgainText, player);
     }
 
     private long minutesElapsed(Date date1, Date date2) {

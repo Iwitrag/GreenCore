@@ -3,19 +3,20 @@ package cz.iwitrag.greencore.gameplay.itemdb;
 import co.aikar.commands.BaseCommand;
 import co.aikar.commands.CommandHelp;
 import co.aikar.commands.annotation.CommandAlias;
+import co.aikar.commands.annotation.CommandCompletion;
 import co.aikar.commands.annotation.CommandPermission;
 import co.aikar.commands.annotation.Description;
 import co.aikar.commands.annotation.Flags;
 import co.aikar.commands.annotation.HelpCommand;
 import co.aikar.commands.annotation.Optional;
 import co.aikar.commands.annotation.Subcommand;
+import co.aikar.commands.bukkit.contexts.OnlinePlayer;
 import cz.iwitrag.greencore.gameplay.chat.ChatUtils;
 import cz.iwitrag.greencore.helpers.DependenciesProvider;
 import cz.iwitrag.greencore.helpers.LuckPermsHelper;
 import cz.iwitrag.greencore.helpers.StringHelper;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.ComponentBuilder;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
@@ -117,20 +118,18 @@ public class ItemDBCommands extends BaseCommand {
 
     @Subcommand("load|get|nacist|ziskat")
     @Description("Načte item s daným názvem z databáze")
-    public void loadCommand(CommandSender sender, @Optional String item, @Optional Integer amount) {
-        giveCommand(sender, sender.getName(), item, amount);
+    @CommandCompletion("@itemdb 1|64")
+    public void loadCommand(Player sender, @Optional String item, @Optional Integer amount) {
+        giveCommand(sender, new OnlinePlayer(sender), item, amount);
     }
 
     @Subcommand("give|dat|givnout")
     @Description("Dá item s daným názvem z databáze nějakému hráči")
-    public void giveCommand(CommandSender sender, String target, @Optional String item, @Optional Integer amount) {
+    @CommandCompletion("@players @itemdb 1|64")
+    public void giveCommand(CommandSender sender, OnlinePlayer player, @Optional String item, @Optional Integer amount) {
         boolean senderIsConsole = sender instanceof ConsoleCommandSender;
 
-        Player targetPlayer = Bukkit.getPlayerExact(target);
-        if (targetPlayer == null || !targetPlayer.isOnline()) {
-            sender.sendMessage("§cHráč §4" + target + " §cnení ve hře");
-            return;
-        }
+        Player targetPlayer = player.getPlayer();
 
         if (item == null)
             item = TEMP_SLOT;

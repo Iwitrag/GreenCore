@@ -13,6 +13,8 @@ public class PotionEffectConverter extends AbstractStringConverter implements At
 
     @Override
     public String convertToDatabaseColumn(PotionEffect attribute) {
+        if (attribute == null)
+            return null;
         return composeDatabaseString("PotionEffect",
                 "Type", attribute.getType().getName(),
                 "Duration", attribute.getDuration(),
@@ -25,6 +27,8 @@ public class PotionEffectConverter extends AbstractStringConverter implements At
 
     @Override
     public PotionEffect convertToEntityAttribute(String dbData) {
+        if (dbData == null)
+            return null;
         Map<String, String> map = extractEntityAttributes(dbData);
 
         return new PotionEffect(

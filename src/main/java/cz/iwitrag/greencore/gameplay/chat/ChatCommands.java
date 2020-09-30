@@ -3,7 +3,6 @@ package cz.iwitrag.greencore.gameplay.chat;
 import co.aikar.commands.BaseCommand;
 
 public class ChatCommands extends BaseCommand {
-
     // clear chat
     // enable / disable chat
     // simple tellraw with simple color support

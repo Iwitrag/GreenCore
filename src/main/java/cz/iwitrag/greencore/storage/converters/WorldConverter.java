@@ -12,6 +12,8 @@ public class WorldConverter extends AbstractStringConverter implements Attribute
 
     @Override
     public String convertToDatabaseColumn(World attribute) {
+        if (attribute == null)
+            return null;
         return composeDatabaseString("World",
                 "Name", attribute.getName()
         );
@@ -19,6 +21,8 @@ public class WorldConverter extends AbstractStringConverter implements Attribute
 
     @Override
     public World convertToEntityAttribute(String dbData) {
+        if (dbData == null)
+            return null;
         Map<String, String> map = extractEntityAttributes(dbData);
 
         return Bukkit.getWorld(

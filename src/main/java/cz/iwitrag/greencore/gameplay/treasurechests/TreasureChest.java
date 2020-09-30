@@ -19,58 +19,121 @@ import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.hibernate.annotations.Cascade;
 import org.ipvp.canvas.Menu;
 import org.ipvp.canvas.slot.ClickOptions;
 import org.ipvp.canvas.slot.Slot;
 import org.ipvp.canvas.type.ChestMenu;
 
-import javax.persistence.Transient;
+import javax.persistence.*;
 import java.util.*;
 
+// TCHEST TODO - paginated item list (because too many items creates exception)
+// TCHEST TODO - create general confirmation system usable in other cases as well
+
+@Entity
+@Table(name="TChest")
 public class TreasureChest {
 
-    private long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", updatable = false, nullable = false)
+    private Long id;
+
+    @Column(nullable = false)
     private Location location;
+
+    @OneToMany(fetch = FetchType.EAGER, orphanRemoval = true)
+    @Cascade(org.hibernate.annotations.CascadeType.ALL)
+    @OrderColumn(name = "list_id")
+    @JoinColumn(name = "tchest_id")
     private List<PossibleItemReward> itemDatabase = new ArrayList<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "TChest_cooldown", joinColumns = {@JoinColumn(name = "tchest_id")})
+    @MapKeyColumn(name = "player")
+    @Column(name = "cooldown", nullable = false)
+    @Temporal(TemporalType.TIMESTAMP)
     private Map<String, Date> playerCooldowns = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 
     @Transient
     private Date hideCooldown = null;
+
     @Transient
     private BlockData hiddenBlockData = null;
+
     @Transient
     private boolean hidden = false;
 
+    @Column(nullable = false, columnDefinition = "int default -1")
     private int cooldown = -1;
+
+    @Column(length = 5000)
     private ItemStack neededItem = null;
+
+    @Column
     private String neededPermission = null;
 
-    private int minimumItems = -1;
-    private int maximumItems = -1;
+    @Column(nullable = false, columnDefinition = "int default 0")
+    private int minimumItems = 0;
+
+    @Column(nullable = false, columnDefinition = "int default 54")
+    private int maximumItems = 54;
+
+    @Column
     private String privateMessage = null;
+
+    @Column
     private String broadcastMessage = null;
 
+    @Column(nullable = false)
     private boolean dropItemsLeftInside = true;
+
+    @Column(nullable = false)
     private boolean dropItemsOnDestroy = false;
+
+    @Column(nullable = false, columnDefinition = "int default 0")
     private int hideChestAfterOpen = 0;
+
+    @Column(nullable = false, columnDefinition = "int default 0")
     private int manualSelectItems = 0;
 
+    @Column
     private String hologramText = null;
+
     @Transient
     private Hologram hologram = null;
+
     @Transient
     private static int hologramId = 0;
 
+    @Enumerated(EnumType.STRING)
     private Particle particle = null;
+
+    @Column
     private Color particleColor = null;
+
     @Transient
     private BukkitRunnable particleRunnable = null;
+
+    public TreasureChest() { }
 
     public TreasureChest(Location location, Percent itemChance) {
         this.location = location.getBlock().getLocation().clone();
         addRewardsFromBlock(location.getBlock(), itemChance);
         spawnHologram();
         startSpawningParticles();
+    }
+
+    @PostLoad
+    public void afterDbLoad() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                spawnHologram();
+                startSpawningParticles();
+            }
+        }.runTask(Main.getInstance());
     }
 
     public List<PossibleItemReward> getPossibleRewards() {
@@ -95,15 +158,18 @@ public class TreasureChest {
         this.dropItemsOnDestroy = chest.isDropItemsOnDestroy();
         this.hideChestAfterOpen = chest.getHideChestAfterOpen();
         this.manualSelectItems = chest.getManualSelectItems();
+        this.particle = chest.getParticle();
+        this.particleColor = new Color(chest.getParticleColor());
+        this.hologramText = chest.getHologramText();
         spawnHologram();
         startSpawningParticles();
     }
 
-    public long getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
@@ -152,13 +218,16 @@ public class TreasureChest {
         addRewardsFromBlock(block, itemChance);
     }
 
-    public boolean setChanceForReward(int id, Percent itemChance) {
-        PossibleItemReward reward = itemDatabase.get(id);
+    public void setChanceForReward(int id, Percent itemChance) {
+        PossibleItemReward reward = null;
+        try {
+            reward = itemDatabase.get(id);
+        } catch (IndexOutOfBoundsException ignored) {
+
+        }
         if (reward != null) {
             reward.setChance(itemChance);
-            return true;
         }
-        return false;
     }
 
     public void setChanceForRewards(Percent itemChance) {
@@ -195,13 +264,12 @@ public class TreasureChest {
         return false;
     }
 
-    public boolean removeOnePossibleReward(int id) {
+    public void removeOnePossibleReward(int id) {
         try {
             itemDatabase.remove(id);
-        } catch (IndexOutOfBoundsException ex) {
-            return false;
+        } catch (IndexOutOfBoundsException ignored) {
+
         }
-        return true;
     }
 
     public boolean removeAllPossibleRewards(PossibleItemReward reward) {
@@ -241,12 +309,8 @@ public class TreasureChest {
         playerCooldowns.put(player, newCooldown);
     }
 
-    public boolean removePlayerCooldown(String player) {
-        if (playerCooldowns.containsKey(player)) {
-            playerCooldowns.remove(player);
-            return true;
-        }
-        return false;
+    public void removePlayerCooldown(String player) {
+        playerCooldowns.remove(player);
     }
 
     public void purgePlayerCooldowns() {
@@ -326,8 +390,11 @@ public class TreasureChest {
     public void setMinimumItems(int amount) {
         if (amount < 0)
             amount = 0;
+        if (amount > 54)
+            amount = 54;
         if (amount > maximumItems)
             maximumItems = amount;
+
         minimumItems = amount;
     }
 
@@ -338,8 +405,11 @@ public class TreasureChest {
     public void setMaximumItems(int amount) {
         if (amount < 0)
             amount = 0;
+        if (amount > 54)
+            amount = 54;
         if (amount < minimumItems)
             minimumItems = amount;
+
         maximumItems = amount;
     }
 
@@ -424,7 +494,6 @@ public class TreasureChest {
     private void spawnHologram() {
         if (hologramText == null)
             return;
-
         hologram = constructHologram(hologramText);
         if (!isHidden())
             hologram.spawn();
@@ -563,15 +632,15 @@ public class TreasureChest {
                     itemPool.remove(additionalReward);
                 }
             }
-            // achieve maximumItems by randomly removing rewards one by one
-            int realMaximumItems;
-            if (maximumItems <= 0 || maximumItems > 54)
-                realMaximumItems = 54;
-            else
-                realMaximumItems = maximumItems;
-            while (selectedItems.size() > realMaximumItems) {
-                selectedItems.remove(Utils.pickRandomElement(selectedItems));
-            }
+        }
+        // achieve maximumItems by randomly removing rewards one by one
+        int realMaximumItems;
+        if (maximumItems <= 0 || maximumItems > 54)
+            realMaximumItems = 54;
+        else
+            realMaximumItems = maximumItems;
+        while (selectedItems.size() > realMaximumItems) {
+            selectedItems.remove(Utils.pickRandomElement(selectedItems));
         }
 
         // Open chest for player
@@ -608,7 +677,11 @@ public class TreasureChest {
                             InventoryAction.COLLECT_TO_CURSOR,
                             InventoryAction.CLONE_STACK,
                             InventoryAction.MOVE_TO_OTHER_INVENTORY,
-                            InventoryAction.HOTBAR_MOVE_AND_READD)
+                            InventoryAction.HOTBAR_MOVE_AND_READD,
+                            InventoryAction.DROP_ALL_CURSOR,
+                            InventoryAction.DROP_ALL_SLOT,
+                            InventoryAction.DROP_ONE_CURSOR,
+                            InventoryAction.DROP_ONE_SLOT)
                     .build();
             menu.setCloseHandler((p, m) -> {
                 boolean droppedSomething = false;
@@ -724,27 +797,16 @@ public class TreasureChest {
     private void printMessages(Player player, List<ItemStack> rewards) {
         String[] playerKeywords = new String[]{"player", "hrac", "hráč", "nick", "name", "nickname"};
         String[] itemsKeywords = new String[]{"item", "items", "itemy", "reward", "rewards", "loot", "loots", "odmena", "odmeny", "poklad", "poklady"};
-        ComponentBuilder rewardList = new ComponentBuilder("").appendLegacy("§r");
-        if (rewards.isEmpty())
-            rewardList.appendLegacy("§cNic");
-        else {
-            for (Iterator<ItemStack> iterator = rewards.iterator(); iterator.hasNext(); ) {
-                ItemStack reward = iterator.next();
-                rewardList.append(ChatUtils.getItemableText(true, reward));
-                if (iterator.hasNext())
-                    rewardList.appendLegacy(", §r");
-
-            }
-        }
+        BaseComponent[] rewardList = Utils.getItemStacksForChat(rewards, true, ChatColor.DARK_GRAY, null, null);
         if (broadcastMessage != null) {
             String tempMessage = Utils.replacePlaceholders(playerKeywords, ChatColor.translateAlternateColorCodes('&', broadcastMessage), player.getName());
-            BaseComponent[] message = Utils.replacePlaceholders(itemsKeywords, tempMessage, rewardList.create());
+            BaseComponent[] message = Utils.replacePlaceholders(itemsKeywords, tempMessage, rewardList);
             for (Player p : Bukkit.getOnlinePlayers())
                 p.sendMessage(message);
         }
         if (privateMessage != null) {
             String temp = Utils.replacePlaceholders(playerKeywords, ChatColor.translateAlternateColorCodes('&', privateMessage), player.getName());
-            BaseComponent[] message = Utils.replacePlaceholders(itemsKeywords, temp, rewardList.create());
+            BaseComponent[] message = Utils.replacePlaceholders(itemsKeywords, temp, rewardList);
             player.sendMessage(message);
         }
     }

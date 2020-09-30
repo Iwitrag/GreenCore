@@ -82,6 +82,7 @@ public class Init {
 
         new ColorContext().registerCommandContext();
         new CommonContext().registerCommandContext();
+        new ItemDBContext().registerCommandContext();
         new ParticleContext().registerCommandContext();
         new TreasureChestContext().registerCommandContext();
         new ZoneContext().registerCommandContext();

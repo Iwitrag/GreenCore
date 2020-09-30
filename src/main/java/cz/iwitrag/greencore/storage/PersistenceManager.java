@@ -3,30 +3,15 @@ package cz.iwitrag.greencore.storage;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import cz.iwitrag.greencore.Main;
+import cz.iwitrag.greencore.gameplay.treasurechests.PossibleItemReward;
+import cz.iwitrag.greencore.gameplay.treasurechests.TreasureChest;
+import cz.iwitrag.greencore.gameplay.treasurechests.TreasureChestManager;
 import cz.iwitrag.greencore.gameplay.zones.Zone;
 import cz.iwitrag.greencore.gameplay.zones.ZoneException;
 import cz.iwitrag.greencore.gameplay.zones.ZoneManager;
-import cz.iwitrag.greencore.gameplay.zones.actions.Action;
-import cz.iwitrag.greencore.gameplay.zones.actions.CommandAction;
-import cz.iwitrag.greencore.gameplay.zones.actions.DamageAction;
-import cz.iwitrag.greencore.gameplay.zones.actions.MessageAction;
-import cz.iwitrag.greencore.gameplay.zones.actions.NothingAction;
-import cz.iwitrag.greencore.gameplay.zones.actions.PotionEffectAction;
-import cz.iwitrag.greencore.gameplay.zones.actions.TeleportAction;
-import cz.iwitrag.greencore.gameplay.zones.flags.BlockedCommandsFlag;
-import cz.iwitrag.greencore.gameplay.zones.flags.DisconnectPenaltyFlag;
-import cz.iwitrag.greencore.gameplay.zones.flags.EnderPortalFlag;
-import cz.iwitrag.greencore.gameplay.zones.flags.Flag;
-import cz.iwitrag.greencore.gameplay.zones.flags.MineFlag;
-import cz.iwitrag.greencore.gameplay.zones.flags.ParticlesFlag;
-import cz.iwitrag.greencore.gameplay.zones.flags.TpFlag;
-import cz.iwitrag.greencore.storage.converters.ColorConverter;
-import cz.iwitrag.greencore.storage.converters.LocationConverter;
-import cz.iwitrag.greencore.storage.converters.MineFlagBlocksConverter;
-import cz.iwitrag.greencore.storage.converters.PercentConverter;
-import cz.iwitrag.greencore.storage.converters.PotionEffectConverter;
-import cz.iwitrag.greencore.storage.converters.WorldConverter;
-import org.bukkit.inventory.ItemStack;
+import cz.iwitrag.greencore.gameplay.zones.actions.*;
+import cz.iwitrag.greencore.gameplay.zones.flags.*;
+import cz.iwitrag.greencore.storage.converters.*;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.hibernate.HibernateException;
 import org.hibernate.Session;
@@ -148,7 +133,7 @@ public class PersistenceManager {
             configuration.setProperty("hibernate.hikari.minimumIdle", Integer.toString(HIKARI_MINIMUM_IDLE));
             configuration.setProperty("hibernate.hikari.maximumPoolSize", Integer.toString(HIKARI_MAXIMUM_POOL_SIZE));
 
-            configuration.setProperty("hibernate.show_sql", "false");
+            configuration.setProperty("hibernate.show_sql", "true");
             configuration.setProperty("hibernate.format_sql", "false");
             configuration.setProperty("hibernate.use_sql_comments", "true");
 
@@ -156,7 +141,7 @@ public class PersistenceManager {
 
             // CONVERTERS
             configuration.addAnnotatedClass(ColorConverter.class);
-            configuration.addAnnotatedClass(ItemStack.class);
+            configuration.addAnnotatedClass(ItemStackConverter.class);
             configuration.addAnnotatedClass(LocationConverter.class);
             configuration.addAnnotatedClass(MineFlagBlocksConverter.class);
             configuration.addAnnotatedClass(PercentConverter.class);
@@ -184,6 +169,10 @@ public class PersistenceManager {
             configuration.addAnnotatedClass(ParticlesFlag.class);
             configuration.addAnnotatedClass(TpFlag.class);
 
+            // TCHESTS
+            configuration.addAnnotatedClass(TreasureChest.class);
+            configuration.addAnnotatedClass(PossibleItemReward.class);
+
             Thread.currentThread().setContextClassLoader(Main.class.getClassLoader());
 
             hibernateSessionFactory = configuration.buildSessionFactory();
@@ -197,7 +186,9 @@ public class PersistenceManager {
             public void run() {
                 try {
                     runHibernateTaskNoRunnable(task, autoTransaction);
-                } catch (PersistenceException ignored) { }
+                } catch (PersistenceException ex) {
+                    ex.printStackTrace();
+                }
             }
         };
 
@@ -228,8 +219,14 @@ public class PersistenceManager {
             if (autoTransaction && transaction != null && transaction.isActive())
                 session.getTransaction().commit();
         } catch (PersistenceException ex) {
-            if (autoTransaction && transaction != null && transaction.isActive())
-                transaction.rollback();
+            if (autoTransaction && transaction != null && transaction.isActive()) {
+                try {
+                    transaction.rollback();
+                } catch (Exception exx) {
+                    Main.getInstance().getLogger().severe("Persistence error occured, failed to rollback transaction: " + exx.getMessage());
+                    exx.printStackTrace();
+                }
+            }
             throw ex;
         }
     }
@@ -249,14 +246,22 @@ public class PersistenceManager {
 
         // ZONES
 
-        ZoneManager manager = ZoneManager.getInstance();
+        ZoneManager zoneManager = ZoneManager.getInstance();
         List<Zone> zones = session.createQuery("from Zone").list();
         for (Zone zone : zones) {
             try {
-                manager.addZone(zone, false);
+                zoneManager.addZone(zone, false);
             } catch (ZoneException e) {
                 Main.getInstance().getLogger().severe("Failed to add Zone from DB " + zone.getName() + " to ZoneManager, reason: " + e.getMessage());
             }
+        }
+
+        // TCHESTS
+
+        TreasureChestManager treasureChestManager = TreasureChestManager.getInstance();
+        List<TreasureChest> tChests = session.createQuery("from TreasureChest").list();
+        for (TreasureChest tChest : tChests) {
+            treasureChestManager.addTreasureChest(tChest, false);
         }
 
         // ADD OTHER STUFF
@@ -271,9 +276,17 @@ public class PersistenceManager {
         }
     }
 
+    public void updateTreasureChestData(Session session) {
+        Main.getInstance().getLogger().info("Updating treasure chest data in DB...");
+        for (TreasureChest tChest : TreasureChestManager.getInstance().getTreasureChests()) {
+            session.update(tChest);
+        }
+    }
+
     public void updateAllData(Session session) {
 
         updateZoneData(session);
+        updateTreasureChestData(session);
 
         // ADD OTHER STUFF
 

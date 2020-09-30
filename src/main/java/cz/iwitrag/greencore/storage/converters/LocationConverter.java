@@ -13,6 +13,8 @@ public class LocationConverter extends AbstractStringConverter implements Attrib
 
     @Override
     public String convertToDatabaseColumn(Location attribute) {
+        if (attribute == null)
+            return null;
         return composeDatabaseString("Location",
                 "X", Utils.twoDecimal(attribute.getX()),
                 "Y", Utils.twoDecimal(attribute.getY()),
@@ -25,6 +27,8 @@ public class LocationConverter extends AbstractStringConverter implements Attrib
 
     @Override
     public Location convertToEntityAttribute(String dbData) {
+        if (dbData == null)
+            return null;
         Map<String, String> map = extractEntityAttributes(dbData);
 
         return new Location(

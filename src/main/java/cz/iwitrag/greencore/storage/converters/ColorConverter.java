@@ -10,11 +10,15 @@ public class ColorConverter extends AbstractStringConverter implements Attribute
 
     @Override
     public String convertToDatabaseColumn(Color attribute) {
+        if (attribute == null)
+            return null;
         return attribute.toString();
     }
 
     @Override
     public Color convertToEntityAttribute(String dbData) {
+        if (dbData == null)
+            return null;
         return Color.fromToString(dbData);
     }
 }

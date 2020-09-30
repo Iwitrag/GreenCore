@@ -1,5 +1,6 @@
 package cz.iwitrag.greencore.helpers;
 
+import cz.iwitrag.greencore.gameplay.chat.ChatUtils;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.TextComponent;
@@ -93,10 +94,28 @@ public class Utils {
 
         ComponentBuilder builder = new ComponentBuilder("");
         if (split.length == 1) {
-            if (Pattern.matches(pattern.toString(), split[0]))
-                builder.append(replacement).create();
-            else
-                builder.appendLegacy(input).create();
+            // No placeholders found (split removed nothing)
+            if (input.equals(split[0]))
+                builder.append(input);
+            // Entire input was just placeholder
+            else if (split[0].isEmpty())
+                builder.append(replacement);
+            // Placeholder was in the end
+            else if (input.startsWith(split[0])) {
+                builder.append(split[0]);
+                builder.append(replacement);
+            }
+            // Placeholder was in the beginning
+            else if (input.endsWith(split[0])) {
+                builder.append(replacement);
+                builder.append(split[0]);
+            }
+            // Placeholder was in the beginning and in the end
+            else {
+                builder.append(replacement);
+                builder.append(split[0]);
+                builder.append(replacement);
+            }
         } else {
             for (int i = 0; i < split.length; i++) {
                 builder.appendLegacy(split[i]);
@@ -148,6 +167,38 @@ public class Utils {
         result.setPitch(pitch);
         result.setYaw(yaw);
         return result;
+    }
+
+    public static BaseComponent[] getItemStacksForChat(Collection<ItemStack> items, boolean withAmounts, ChatColor separatorColor, BaseComponent[] prefix, BaseComponent[] suffix) {
+        Set<ItemStack> itemStacks = mergeItemStacks(items);
+        ComponentBuilder builder = new ComponentBuilder("").appendLegacy("§r");
+        if (itemStacks.isEmpty())
+            builder.appendLegacy("§cNic");
+        else {
+            for (Iterator<ItemStack> iterator = itemStacks.iterator(); iterator.hasNext(); ) {
+                ItemStack itemStack = iterator.next();
+                if (prefix != null)
+                    builder.append(prefix);
+                builder.append(ChatUtils.getItemableText(withAmounts, itemStack));
+                if (suffix != null)
+                    builder.append(suffix);
+                if (iterator.hasNext())
+                    builder.appendLegacy(separatorColor + ", §r");
+            }
+        }
+        return builder.create();
+    }
+
+    public static Set<ItemStack> mergeItemStacks(Collection<ItemStack> items) {
+        Set<ItemStack> merged = new HashSet<>();
+        for (ItemStack item : items) {
+            ItemStack existingItem = merged.stream().filter((i) -> i.isSimilar(item)).findAny().orElse(null);
+            if (existingItem == null)
+                merged.add(item);
+            else
+                existingItem.setAmount(existingItem.getAmount() + item.getAmount());
+        }
+        return merged;
     }
 
     /** Checks whether the player has empty inventory (including armor slots) */

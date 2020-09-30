@@ -2,21 +2,15 @@ package cz.iwitrag.greencore.gameplay.treasurechests;
 
 import co.aikar.commands.BaseCommand;
 import co.aikar.commands.CommandHelp;
-import co.aikar.commands.annotation.CommandAlias;
-import co.aikar.commands.annotation.CommandCompletion;
-import co.aikar.commands.annotation.CommandPermission;
-import co.aikar.commands.annotation.Default;
-import co.aikar.commands.annotation.Description;
-import co.aikar.commands.annotation.Flags;
-import co.aikar.commands.annotation.HelpCommand;
 import co.aikar.commands.annotation.Optional;
-import co.aikar.commands.annotation.Subcommand;
+import co.aikar.commands.annotation.*;
 import co.aikar.commands.bukkit.contexts.OnlinePlayer;
 import cz.iwitrag.greencore.gameplay.chat.ChatUtils;
 import cz.iwitrag.greencore.helpers.Color;
 import cz.iwitrag.greencore.helpers.Percent;
 import cz.iwitrag.greencore.helpers.StringHelper;
 import cz.iwitrag.greencore.helpers.Utils;
+import cz.iwitrag.greencore.storage.PersistenceManager;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
@@ -32,11 +26,7 @@ import org.ipvp.canvas.slot.ClickOptions;
 import org.ipvp.canvas.slot.Slot;
 import org.ipvp.canvas.type.ChestMenu;
 
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @CommandAlias("tchest|treasurechest|tch")
 @CommandPermission("tchest.admin")
@@ -254,31 +244,20 @@ public class TreasureChestCommands extends BaseCommand {
     @Description("Nastaví minimální počet itemů vylosovaný chestkou")
     @CommandCompletion("@range")
     public void minItemsCommand(Player sender, @Flags("selected") TreasureChest tChest, @Optional Integer minItems) {
-        if (minItems == null) {
-            minItems = tChest.getMinimumItems();
-            String itemsText;
-            itemsText = minItems + " ";
-            if (minItems <= 0 || minItems >= 5)
-                itemsText += "itemů";
-            else if (minItems == 1)
-                itemsText += "item";
-            else
-                itemsText += "itemy";
-            sender.sendMessage("§aMinimální počet itemů vylosovaný chestkou je nastaven na §2" + itemsText);
-        }
-        else {
+        if (minItems != null)
             tChest.setMinimumItems(minItems);
-            minItems = tChest.getMinimumItems();
-            String itemsText;
-            itemsText = minItems + " ";
-            if (minItems <= 0 || minItems >= 5)
-                itemsText += "itemů";
-            else if (minItems == 1)
-                itemsText += "item";
-            else
-                itemsText += "itemy";
-            sender.sendMessage("§aMinimální počet itemů vylosovaný chestkou byl nastaven na §2" + itemsText);
-        }
+        int realMinItems = tChest.getMinimumItems();
+        String itemWord = realMinItems + " ";
+        if (realMinItems <= 0 || realMinItems >= 5)
+            itemWord += "itemů";
+        else if (realMinItems == 1)
+            itemWord += "item";
+        else
+            itemWord += "itemy";
+        if (minItems == null)
+            sender.sendMessage("§aMinimální počet vylosovaných itemů je nastaven na §2" + itemWord);
+        else
+            sender.sendMessage("§aMinimální počet vylosovaných itemů byl nastaven na §2" + itemWord);
         sender.sendMessage("§7§8(Pokud v databázi chestky nebude dost itemů, vylosují se všechny co v ní jsou)");
     }
 
@@ -286,31 +265,20 @@ public class TreasureChestCommands extends BaseCommand {
     @Description("Nastaví maximální počet itemů vylosovaný chestkou")
     @CommandCompletion("@range")
     public void maxItemsCommand(Player sender, @Flags("selected") TreasureChest tChest, @Optional Integer maxItems) {
-        if (maxItems == null) {
-            maxItems = tChest.getMaximumItems();
-            String itemsText;
-            itemsText = maxItems + " ";
-            if (maxItems <= 0 || maxItems >= 5)
-                itemsText += "itemů";
-            else if (maxItems == 1)
-                itemsText += "item";
-            else
-                itemsText += "itemy";
-            sender.sendMessage("§aMaximální počet itemů vylosovaný chestkou je nastaven na §2" + itemsText);
-        }
-        else {
+        if (maxItems != null)
             tChest.setMaximumItems(maxItems);
-            maxItems = tChest.getMaximumItems();
-            String itemsText;
-            itemsText = maxItems + " ";
-            if (maxItems <= 0 || maxItems >= 5)
-                itemsText += "itemů";
-            else if (maxItems == 1)
-                itemsText += "item";
-            else
-                itemsText += "itemy";
-            sender.sendMessage("§aMaximální počet itemů vylosovaný chestkou byl nastaven na §2" + itemsText);
-        }
+        int realMaxItems = tChest.getMaximumItems();
+        String itemWord = realMaxItems + " ";
+        if (realMaxItems <= 0 || realMaxItems >= 5)
+            itemWord += "itemů";
+        else if (realMaxItems == 1)
+            itemWord += "item";
+        else
+            itemWord += "itemy";
+        if (maxItems == null)
+            sender.sendMessage("§aMaximální počet vylosovaných itemů je nastaven na §2" + itemWord);
+        else
+            sender.sendMessage("§aMaximální počet vylosovaných itemů je nastaven na §2" + itemWord);
     }
 
     @Subcommand("dropitems")
@@ -424,6 +392,14 @@ public class TreasureChestCommands extends BaseCommand {
         sender.sendMessage("§7§o(Nový řádek lze vytvořit napsáním ||)");
     }
 
+    @Subcommand("saveall|ulozitvse")
+    @Description("Zapíše veškeré změny do databáze")
+    public void saveAllCommand(CommandSender sender) {
+        PersistenceManager pm = PersistenceManager.getInstance();
+        pm.runHibernateAsyncTask(pm::updateTreasureChestData, true);
+        sender.sendMessage("§aUkládání spuštěno, případné chyby se objeví v konzoli a logu");
+    }
+
     @Subcommand("msg|msgs|message|messages|zprava|zpravy")
     public class msgCommands extends BaseCommand {
 
@@ -507,6 +483,13 @@ public class TreasureChestCommands extends BaseCommand {
             };
             BaseComponent[] item = ChatUtils.getItemableTextWithRunnable(true, reward.getItem(), itemRunnable);
             sender.sendMessage(new ComponentBuilder("").appendLegacy("§aItem §r").append(item).appendLegacy(" §aodebrán z databáze chestky").create());
+        }
+
+        @Subcommand("purge|deleteall|removeall|smazatvse|odstranitvse")
+        @Description("Odebere všechny itemy z databáze chestky")
+        public void itemPurgeCommand(Player sender, @Flags("selected") TreasureChest tChest) {
+            tChest.purgePossibleRewards();
+            sender.sendMessage("§aVšechny itemy z treasure chestky odstraněny");
         }
 
         @Subcommand("list|seznam|vypsat")
@@ -629,7 +612,7 @@ public class TreasureChestCommands extends BaseCommand {
                     .appendLegacy("\n§9Potřebná permise: §f")
                     .appendLegacy(tChest.getNeededPermission() == null ? "§cŽádná permise" : tChest.getNeededPermission())
                     .appendLegacy("\n§9Min/Max itemů: §f")
-                    .appendLegacy(tChest.getMinimumItems() + " / " + tChest.getMaximumItems())
+                    .appendLegacy(tChest.getMinimumItems() + " - " + tChest.getMaximumItems())
                     .appendLegacy("\n§9Zpráva pro hráče: §f")
                     .appendLegacy(tChest.getPrivateMessage() == null ? "§cŽádná zpráva" : tChest.getPrivateMessage())
                     .appendLegacy("\n§9Zpráva pro všechny: §f")

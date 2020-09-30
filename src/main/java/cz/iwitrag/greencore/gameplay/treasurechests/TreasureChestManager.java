@@ -1,5 +1,6 @@
 package cz.iwitrag.greencore.gameplay.treasurechests;
 
+import cz.iwitrag.greencore.storage.PersistenceManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -37,8 +38,11 @@ public class TreasureChestManager {
         return null;
     }
 
-    public void addTreasureChest(TreasureChest treasureChest) {
+    public void addTreasureChest(TreasureChest treasureChest, boolean insertToDb) {
         treasureChests.add(treasureChest);
+
+        if (insertToDb)
+            PersistenceManager.getInstance().runHibernateAsyncTask((session -> session.save(treasureChest)), true);
     }
 
     public void removeTreasureChest(TreasureChest treasureChest) {
@@ -58,6 +62,8 @@ public class TreasureChestManager {
         }
 
         selectedTChests.entrySet().removeIf(entry -> entry.getValue().equals(treasureChest));
+
+        PersistenceManager.getInstance().runHibernateAsyncTask((session -> session.delete(treasureChest)), true);
     }
 
     public void purgeTreasureChests() {

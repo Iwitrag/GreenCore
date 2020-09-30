@@ -11,11 +11,15 @@ public class ItemStackConverter extends AbstractStringConverter implements Attri
 
     @Override
     public String convertToDatabaseColumn(ItemStack attribute) {
+        if (attribute == null)
+            return null;
         return Utils.itemStackToString(attribute);
     }
 
     @Override
     public ItemStack convertToEntityAttribute(String dbData) {
+        if (dbData == null)
+            return null;
         return Utils.stringToItemStack(dbData);
     }
 }

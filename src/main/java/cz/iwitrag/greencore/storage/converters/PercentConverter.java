@@ -6,15 +6,19 @@ import javax.persistence.AttributeConverter;
 import javax.persistence.Converter;
 
 @Converter(autoApply = true)
-public class PercentConverter extends AbstractStringConverter implements AttributeConverter<Percent, String> {
+public class PercentConverter implements AttributeConverter<Percent, Double> {
 
     @Override
-    public String convertToDatabaseColumn(Percent attribute) {
-        return attribute.toString();
+    public Double convertToDatabaseColumn(Percent attribute) {
+        if (attribute == null)
+            return null;
+        return attribute.getPercentValue();
     }
 
     @Override
-    public Percent convertToEntityAttribute(String dbData) {
+    public Percent convertToEntityAttribute(Double dbData) {
+        if (dbData == null)
+            return null;
         return new Percent(dbData);
     }
 }
